@@ -2,7 +2,11 @@
 
 A [KernelSU](https://github.com/tiann/KernelSU)-based root solution for Android devices.
 
-**Experimental. Use at your own risk.**
+Upstream: [55820e49f2e258426ae635182a89b5a655b6c5d5](https://github.com/tiann/KernelSU/commit/55820e49f2e258426ae635182a89b5a655b6c5d5)
+
+**Experimental. Use at your own risk. (Low frequency maintenance)**
+
+**实验性，风险自负（随缘维护）**
 
 ## Features
 
