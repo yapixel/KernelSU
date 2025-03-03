@@ -15,7 +15,11 @@
 #include <linux/sched.h>
 #include <linux/stddef.h>
 #include <linux/binfmts.h>
+
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
 #include <linux/lsm_hooks.h>
+#endif
+
 #include <linux/nsproxy.h>
 #include <linux/path.h>
 #include <linux/printk.h>
@@ -44,6 +48,12 @@
 
 bool ksu_module_mounted = false;
 void nuke_ext4_sysfs(const char *custompath);
+
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
+#define LSM_HANDLER_TYPE static int
+#else
+#define LSM_HANDLER_TYPE int
+#endif
 
 extern int handle_sepolicy(unsigned long arg3, void __user *arg4);
 
@@ -319,7 +329,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
 	return 0;
 }
 
-int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
+LSM_HANDLER_TYPE ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
 {
 	if (!current->mm) {
 		// skip kernel threads
@@ -439,7 +449,7 @@ static void try_umount(const char *mnt, int flags)
 #endif
 }
 
-int ksu_handle_setuid(struct cred *new, const struct cred *old)
+LSM_HANDLER_TYPE ksu_handle_setuid(struct cred *new, const struct cred *old)
 {
 	if (!new || !old) {
 		return 0;
@@ -534,7 +544,7 @@ do_umount:
 	return 0;
 }
 
-int ksu_bprm_check(struct linux_binprm *bprm)
+LSM_HANDLER_TYPE ksu_bprm_check(struct linux_binprm *bprm)
 {
 	char *filename = (char *)bprm->filename;
 	
@@ -547,9 +557,9 @@ int ksu_bprm_check(struct linux_binprm *bprm)
 
 }
 
-// kernel 4.4 and 4.9
+// kernel 4.9 and older
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
-static int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
+LSM_HANDLER_TYPE ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
 			      unsigned perm)
 {
 	if (init_session_keyring != NULL) {
@@ -564,6 +574,8 @@ static int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
 	return 0;
 }
 #endif
+
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
 static int ksu_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
 			    struct inode *new_inode, struct dentry *new_dentry)
 {
@@ -603,3 +615,12 @@ void __init ksu_core_init(void)
 	}
 
 }
+#else
+void __init ksu_core_init(void)
+{
+	pr_info("ksu_core_init: LSM hooks not in use.\n");
+	if (ksu_register_feature_handler(&kernel_umount_handler)) {
+		pr_err("Failed to register kernel_umount feature handler\n");
+	}
+}
+#endif //CONFIG_KSU_LSM_SECURITY_HOOKS
