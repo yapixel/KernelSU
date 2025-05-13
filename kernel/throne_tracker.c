@@ -5,6 +5,9 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/version.h>
+#include <linux/compiler.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include "allowlist.h"
 #include "klog.h" // IWYU pragma: keep
@@ -15,7 +18,11 @@
 
 uid_t ksu_manager_uid = KSU_INVALID_UID;
 
-#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list.tmp"
+static struct task_struct *throne_thread;
+static bool throne_thread_should_run = false;
+static DECLARE_WAIT_QUEUE_HEAD(throne_thread_wq);
+
+#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list"
 
 struct uid_data {
 	struct list_head list;
@@ -284,15 +291,17 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 	return exist;
 }
 
-void track_throne()
+static bool track_throne_running = false;
+
+static void track_throne_function()
 {
-	struct file *fp =
-		ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+	struct file *fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
-		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n",
-		       __func__, PTR_ERR(fp));
+		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n", __func__, PTR_ERR(fp));
 		return;
 	}
+	
+	WRITE_ONCE(track_throne_running, true);
 
 	struct list_head uid_list;
 	INIT_LIST_HEAD(&uid_list);
@@ -372,6 +381,8 @@ prune:
 	// then prune the allowlist
 	ksu_prune_allowlist(is_uid_exist, &uid_list);
 out:
+	// unlock kthread hint
+	WRITE_ONCE(track_throne_running, false);
 	// free uid_list
 	list_for_each_entry_safe (np, n, &uid_list, list) {
 		list_del(&np->list);
@@ -379,12 +390,57 @@ out:
 	}
 }
 
-void ksu_throne_tracker_init()
+static int throne_tracker_thread(void *data)
 {
-	// nothing to do
+	pr_info("throne_tracker: kthread started\n");
+
+	for (;;) {
+		wait_event_interruptible(throne_thread_wq, throne_thread_should_run);
+		throne_thread_should_run = false;
+		track_throne_function();
+	}
+	return 0;
 }
 
-void ksu_throne_tracker_exit()
+// this is unused for now, hint dce as such
+static void __maybe_unused stop_throne_tracker_thread(void)
 {
-	// nothing to do
+	if (throne_thread) {
+		throne_thread_should_run = false;
+		wake_up_interruptible(&throne_thread_wq);
+		kthread_stop(throne_thread);
+		throne_thread = NULL;
+		pr_info("throne_tracker: kthread stopped\n");
+	}
+}
+
+
+static void start_throne_tracker_thread(void)
+{
+	pr_info("start_throne_tracker_thread invoked!\n");
+	throne_thread = kthread_run(throne_tracker_thread, NULL, "throne_tracker");
+	if (IS_ERR(throne_thread)) {
+		pr_err("failed to start throne_tracker kthread\n");
+		throne_thread = NULL;
+	}
+}
+
+void track_throne()
+{
+	/* Note. You should protect kthread not to run it again if track_throne thread still running - acroreiser */	
+	if (READ_ONCE(track_throne_running)) { return; }
+
+	pr_info("track_throne kthread wakeup!\n");
+	throne_thread_should_run = true;
+	wake_up_interruptible(&throne_thread_wq);
+}
+
+void ksu_throne_tracker_init()
+{
+	start_throne_tracker_thread();
+}
+
+void __maybe_unused ksu_throne_tracker_exit()
+{
+	stop_throne_tracker_thread();
 }
