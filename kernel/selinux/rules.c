@@ -140,6 +140,9 @@ void apply_kernelsu_rules()
 	ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
 	ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
 
+	// throne_tracker kthread, it does work without this, but PR 2757, 2759 won't
+	ksu_allow(db, "throne_tracker", "kernel", "capability", "dac_override");
+
 	mutex_unlock(&ksu_rules);
 }
 
