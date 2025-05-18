@@ -76,6 +76,14 @@ void ksu_android_ns_fs_check()
 	task_unlock(current);
 }
 
+int ksu_access_ok(const void *addr, unsigned long size) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
+	return access_ok(VERIFY_READ, addr, size);
+#else
+	return access_ok(addr, size);
+#endif
+}
+
 struct file *ksu_filp_open_compat(const char *filename, int flags, umode_t mode)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
