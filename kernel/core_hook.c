@@ -600,9 +600,6 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
 		current->pid);
 #endif
 
-	// try umount /system/etc/hosts (hosts module)
-	try_umount("/system/etc/hosts", MNT_DETACH);
-
 	list_for_each_entry_safe(entry, tmp, &mount_list, list) {
 		try_umount(entry->umountable, MNT_DETACH);
 		// don't free! keep on heap! this is used on subsequent setuid calls
@@ -621,7 +618,8 @@ static int ksu_mount_monitor(const char *dev_name, const char *dirname, const ch
 	char *dirname_copy = kstrdup(dirname, GFP_KERNEL);
 	struct mount_entry *new_entry;
 
-	if (!device_name_copy || !fstype_copy || !dirname_copy) {
+	if (!device_name_copy || !dirname_copy) { 
+		// allow null fstype_copy for bind mounts/loopbacks
 		goto out;
 	}
 	
@@ -629,7 +627,10 @@ static int ksu_mount_monitor(const char *dev_name, const char *dirname, const ch
 	 * feel free to add your own patterns
 	 * default one is just KSU devname or it starts with /data/adb/modules
 	 */
-	if ((!strcmp(device_name_copy, "KSU")) || strstarts(dirname_copy, "/data/adb/modules") ) {
+	if ((!strcmp(device_name_copy, "KSU")) 
+		|| strstarts(dirname_copy, "/data/adb/modules")
+		|| strstr(dirname_copy, "com.android.art/bin/dex2oat")
+		|| !strcmp(dirname_copy, "/system/etc/hosts") ) {
 		new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
 		if (new_entry) {
 			new_entry->umountable = kstrdup(dirname, GFP_KERNEL);
