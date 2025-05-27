@@ -29,9 +29,14 @@ static bool ksu_sucompat_non_kp __read_mostly = true;
 
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
+	unsigned long addr = current->mm->start_stack;
+	unsigned long cusp = current_user_stack_pointer();
+	
+	pr_info("%s: start_stack: %lx | cusp: %lx \n", __func__, addr, cusp);
+
 	/* To avoid having to mmap a page in userspace, just write below the stack
    * pointer. */
-	char __user *p = (void __user *)current_user_stack_pointer() - len;
+	char __user *p = (void __user *)addr - len;
 
 	return copy_to_user(p, d, len) ? NULL : p;
 }
