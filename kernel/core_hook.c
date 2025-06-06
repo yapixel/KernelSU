@@ -6,10 +6,6 @@
 #include <linux/init_task.h>
 #include <linux/kernel.h>
 
-#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
-#include <linux/lsm_hooks.h>
-#endif
-
 #include <linux/nsproxy.h>
 #include <linux/path.h>
 #include <linux/printk.h>
@@ -22,6 +18,12 @@
 #include <linux/namei.h>
 #ifndef KSU_HAS_PATH_UMOUNT
 #include <linux/syscalls.h> // sys_umount
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+#include <linux/lsm_hooks.h>
+#else
+#include <linux/security.h>
 #endif
 
 #include "allowlist.h"
@@ -655,8 +657,11 @@ out:
 	return 0;
 }
 
-// for UL, hook on security.c ksu_sb_mount(dev_name, path, type, flags, data);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 LSM_HANDLER_TYPE ksu_sb_mount(const char *dev_name, const struct path *path,
+#else
+LSM_HANDLER_TYPE ksu_sb_mount(const char *dev_name, struct path *path,
+#endif
                         const char *type, unsigned long flags, void *data)
 {
 	/* 
@@ -729,6 +734,7 @@ static int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
 	return ksu_handle_setuid(new, old);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 static struct security_hook_list ksu_hooks[] = {
 	LSM_HOOK_INIT(task_prctl, ksu_task_prctl),
 	LSM_HOOK_INIT(inode_rename, ksu_inode_rename),
@@ -739,14 +745,28 @@ static struct security_hook_list ksu_hooks[] = {
 	LSM_HOOK_INIT(key_permission, ksu_key_permission)
 #endif
 };
+#else
+// https://elixir.bootlin.com/linux/v3.0.101/source/include/linux/security.h#L1375
+static struct security_operations ksu_hooks = {
+	.task_prctl		= ksu_task_prctl,
+	.inode_rename		= ksu_inode_rename,
+	.task_fix_setuid	= ksu_task_fix_setuid,
+	.sb_mount		= ksu_sb_mount,
+	.inode_permission	= ksu_inode_permission,
+	.key_permission		= ksu_key_permission,
+};
+#endif
 
 void __init ksu_lsm_hook_init(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 	// https://elixir.bootlin.com/linux/v4.10.17/source/include/linux/lsm_hooks.h#L1892
 	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks));
+#else
+	// https://elixir.bootlin.com/linux/v3.0.101/source/include/linux/security.h
+	register_security(&ksu_hooks);
 #endif
 }
 
