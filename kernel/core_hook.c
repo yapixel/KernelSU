@@ -20,6 +20,7 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/namei.h>
+#include <linux/fs_struct.h> // fs_struct on ksu_inode_permission
 #ifndef KSU_HAS_PATH_UMOUNT
 #include <linux/syscalls.h> // sys_umount
 #endif
@@ -678,6 +679,15 @@ LSM_HANDLER_TYPE ksu_sb_mount(const char *dev_name, const struct path *path,
 	}
 }
 
+static bool __attribute__((hot)) ksu_is_path_blocked(const char *path)
+{
+	return (strstarts(path, "/system/addon.d")
+		|| ( ( strstarts(path, "/system") || strstarts(path, "/product") || strstarts(path, "/vendor")) && (strstr(path, "lineage") || strstr(path, "crdroid") ))
+		|| strstr(path, "vendor_sepolicy.cil")
+		|| strstr(path, "compatibility_matrix.device.xml")
+		|| !strcmp(path, "/system/bin/service") );
+}
+
 extern int ksu_handle_devpts(struct inode *inode); // sucompat.c
 
 LSM_HANDLER_TYPE ksu_inode_permission(struct inode *inode, int mask)
@@ -687,6 +697,82 @@ LSM_HANDLER_TYPE ksu_inode_permission(struct inode *inode, int mask)
 		pr_info("%s: handling devpts for: %s \n", __func__, current->comm);
 #endif
 		ksu_handle_devpts(inode);
+		return 0;
+	}
+	
+	char buf[384];
+	char *realpath;
+	struct dentry *dentry;
+
+	if (!boot_complete_lock)
+		return 0;
+
+	uid_t uid = __kuid_val(current->cred->uid);
+	if (!ksu_uid_should_umount(uid) || (uid % 100000) < 10000 )
+		return 0;
+
+	dentry = d_find_alias(inode);
+	if (!dentry)
+		return 0;
+
+	// create dummy struct path for d_path
+	struct path path = {0};
+	path.dentry = dentry;
+	path.mnt = mntget(current->fs->pwd.mnt);
+
+	realpath = d_path(&path, buf, sizeof(buf));
+	mntput(path.mnt);
+	dput(dentry);
+	if (!(realpath && realpath != buf)) 
+		return 0;
+
+	if (ksu_is_path_blocked(realpath)) {
+		pr_info("%s: denying inode: %s\n", __func__, realpath);
+		return -ENOENT;
+	}
+	return 0;
+}
+
+LSM_HANDLER_TYPE ksu_file_open(struct file *file, const struct cred *cred)
+{
+	char buf[384];
+
+	if (!boot_complete_lock)
+		return 0;
+	
+	uid_t uid = __kuid_val(current->cred->uid);
+	if (!ksu_uid_should_umount(uid) || (uid % 100000) < 10000 )
+		return 0;
+	
+	char *path = d_path(&file->f_path, buf, sizeof(buf));
+	if (!(path && path != buf)) 
+		return 0;
+
+	if (ksu_is_path_blocked(path)) {
+		pr_info("%s: denying access to: %s\n", __func__, path);
+		return -ENOENT;
+	}
+	return 0;
+}
+
+LSM_HANDLER_TYPE ksu_file_stat(const struct path *path)
+{
+	char buf[384];
+
+	if (!boot_complete_lock)
+		return 0;
+
+	uid_t uid = __kuid_val(current->cred->uid);
+	if (!ksu_uid_should_umount(uid) && (uid % 100000) < 10000 )
+		return 0;
+
+	char *realpath = d_path(path, buf, sizeof(buf));
+	if (!(realpath && realpath != buf)) 
+		return 0;
+	
+	if (ksu_is_path_blocked(realpath)) {
+		pr_info("%s: blocking stat: %s\n", __func__, realpath);
+		return -ENOENT;
 	}
 	return 0;
 }
@@ -739,6 +825,8 @@ static struct security_hook_list ksu_hooks[] = {
 	LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
 	LSM_HOOK_INIT(sb_mount, ksu_sb_mount),
 	LSM_HOOK_INIT(inode_permission, ksu_inode_permission),
+	LSM_HOOK_INIT(file_open, ksu_file_open),
+	LSM_HOOK_INIT(inode_getattr, ksu_file_stat),
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
 	LSM_HOOK_INIT(key_permission, ksu_key_permission)
 #endif
