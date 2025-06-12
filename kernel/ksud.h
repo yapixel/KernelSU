@@ -14,4 +14,6 @@ extern u32 ksu_devpts_sid;
 extern bool ksu_execveat_hook __read_mostly;
 extern int ksu_handle_pre_ksud(const char *filename);
 
+extern void escape_to_root(bool do_check_first);
+
 #endif
