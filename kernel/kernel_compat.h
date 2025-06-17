@@ -24,4 +24,16 @@ extern ssize_t ksu_kernel_write_compat(struct file *p, const void *buf,
 
 extern int ksu_access_ok(const void *addr, unsigned long size);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && !defined(KSU_HAS_ITERATE_DIR)
+struct dir_context {
+	const filldir_t actor;
+	loff_t pos;
+};
+
+static int iterate_dir(struct file *file, struct dir_context *ctx)
+{
+	return vfs_readdir(file, ctx->actor, ctx);
+}
+#endif // KSU_HAS_ITERATE_DIR
+
 #endif
