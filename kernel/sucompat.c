@@ -27,6 +27,7 @@ extern void escape_to_root();
 
 static bool ksu_sucompat_non_kp __read_mostly = true;
 
+#if 0
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
 	/* To avoid having to mmap a page in userspace, just write below the stack
@@ -34,6 +35,32 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 	char __user *p = (void __user *)current_user_stack_pointer() - len;
 
 	return copy_to_user(p, d, len) ? NULL : p;
+}
+#endif
+
+// hunt from start_stack
+// we start 32 bytes deep and double on every iteration
+// coming from start_stack downwards
+// we normally get one on the first iteration anyway
+// so the loop is just for resilience
+static void __user *userspace_stack_buffer(const void *d, size_t len)
+{
+	volatile unsigned long start_stack = current->mm->start_stack;
+	unsigned int step = 32;
+	char __user *p = NULL;
+	
+	do {
+		p = (void __user *)(start_stack - step - len);
+		if ( ksu_access_ok(p, len) && !copy_to_user(p, d, len) ) {
+			pr_info("%s: start_stack: %lx p: %lx len: %zu\n",
+				__func__, start_stack, (unsigned long)p, len );
+			return p;
+		}
+
+		step = step + step;
+	} while (step <= 2048);
+
+	return NULL;
 }
 
 static char __user *sh_user_path(void)
