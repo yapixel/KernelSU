@@ -32,6 +32,7 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
 	/* To avoid having to mmap a page in userspace, just write below the stack
    * pointer. */
+	// To avoid having to mmap a page in userspace, just write below the stack * pointer.
 	char __user *p = (void __user *)current_user_stack_pointer() - len;
 
 	return copy_to_user(p, d, len) ? NULL : p;
@@ -39,25 +40,23 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 #endif
 
 // hunt from start_stack
-// we start 32 bytes deep and double on every iteration
-// coming from start_stack downwards
-// we normally get one on the first iteration anyway
-// so the loop is just for resilience
+// so we go 32 bytes deeper on every test coming from start_stack downwards
 static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
 	volatile unsigned long start_stack = current->mm->start_stack;
 	unsigned int step = 32;
 	char __user *p = NULL;
+	unsigned int tries = 1;
 	
 	do {
 		p = (void __user *)(start_stack - step - len);
-		if ( ksu_access_ok(p, len) && !copy_to_user(p, d, len) ) {
-			pr_info("%s: start_stack: %lx p: %lx len: %zu\n",
-				__func__, start_stack, (unsigned long)p, len );
+		if ( !ksu_copy_to_user_nofault(p, d, len) ) {
+			pr_info("%s: start_stack: %lx p: %lx len: %zu tries: %d\n",
+				__func__, start_stack, (unsigned long)p, len, tries );
 			return p;
 		}
-
 		step = step + step;
+		tries++;
 	} while (step <= 2048);
 
 	return NULL;
