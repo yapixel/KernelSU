@@ -29,6 +29,7 @@ extern void escape_to_root();
 void ksu_sucompat_enable();
 void ksu_sucompat_disable();
 
+static bool ksu_sucompat_non_kp __read_mostly = true;
 static bool ksu_su_compat_enabled = true;
 
 static int su_compat_feature_get(u64 *value)
@@ -93,6 +94,8 @@ __attribute__((hot, no_stack_protector))
 static __always_inline bool is_su_allowed(const void *ptr_to_check)
 {
 	barrier();
+	if (!ksu_sucompat_non_kp)
+		return false;
 
 	if (likely(!ksu_is_allow_uid(current_uid().val)))
 		return false;
@@ -193,10 +196,17 @@ int ksu_handle_devpts(struct inode *inode)
 	return 0;
 }
 
-void ksu_sucompat_enable(){
+void ksu_sucompat_enable()
+{
+	ksu_sucompat_non_kp = true;
+	pr_info("ksu_sucompat_init: hooks enabled: exec, faccessat, stat\n");
+
 }
 
-void ksu_sucompat_disable(){
+void ksu_sucompat_disable()
+{
+	ksu_sucompat_non_kp = false;
+	pr_info("ksu_sucompat_exit: hooks disabled: exec, faccessat, stat\n");
 }
 
 // sucompat: permited process can execute 'su' to gain root access.
