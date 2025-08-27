@@ -225,7 +225,13 @@ int ksu_handle_pre_ksud(const char *filename)
 }
 // credits to execprog
 // Copyright (c) 2019 Park Ju Hyung(arter97)
-#include <linux/kmod.h> // note, add ifdef for newer kernel, this on umh.h on newer
+// https://github.com/arter97/android_kernel_nothing_sm8475/commit/9fec4068bb0b7f451c1b8ee28b1423eb0d73fdb3
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+#include <linux/umh.h> 
+#else
+#include <linux/kmod.h> 
+#endif
 static int ksu_tiny_execprog_write(const char *filename, unsigned char *data, int length) {
 	struct file *fp;
 	int ret = 0;
