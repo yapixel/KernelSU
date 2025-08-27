@@ -299,13 +299,7 @@ void ksu_exec_bootscript(struct file *file, const struct cred *cred)
 int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
 			size_t *count_ptr)
 {
-	struct file *file = fget(fd);
-	if (!file) {
-		return 0;
-	}
-	int result = ksu_handle_vfs_read(&file, buf_ptr, count_ptr, NULL);
-	fput(file);
-	return result;
+	return 0;
 }
 
 static unsigned int volumedown_pressed_count = 0;
