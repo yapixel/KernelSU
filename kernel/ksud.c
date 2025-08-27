@@ -251,10 +251,47 @@ static int ksu_tiny_execprog_write(const char *filename, unsigned char *data, in
 	}
 
 	filp_close(fp, NULL);
-	//vfree(data); // TODO: maybe sys_sync? vfs_sync?
+	vfree(data); // TODO: maybe sys_sync? vfs_sync?
 
 	pr_info("%s: wrote: %s (%d bytes)\n", __func__, filename, length);
 	return 0;
+}
+
+#include <linux/kthread.h>
+#include <linux/sched.h>
+static struct task_struct *execprog_thread;
+
+static int ksu_tiny_execprog_exec(void *data)
+{
+	// workaround for -ENOENT
+	// just like how original execprog did it
+	static unsigned int tries = 0;
+
+	pr_info("execprog: executing /dev/ksud.sh\n");
+	char *args[] = {"/system/bin/sh", "/dev/ksud.sh", NULL};
+
+loop_start:
+	rcu_barrier();
+	int umh_ret = call_usermodehelper(args[0], args, NULL, UMH_WAIT_EXEC);
+	pr_info("%s: umh returned %d\n", __func__, umh_ret);
+	if (umh_ret < 0 && tries < 50 ) {
+		pr_info("%s: retrying \n", __func__);
+		msleep(100);
+		tries++;
+		goto loop_start;
+	}
+	else
+		return 0;
+	
+}
+
+static void ksu_tiny_execprog_thread()
+{
+	execprog_thread = kthread_run(ksu_tiny_execprog_exec, NULL, "execprog");
+	if (IS_ERR(execprog_thread)) {
+		execprog_thread = NULL;
+		return;
+	}
 }
 
 void ksu_exec_bootscript(struct file *file, const struct cred *cred)
@@ -280,11 +317,11 @@ void ksu_exec_bootscript(struct file *file, const struct cred *cred)
 	if (strcmp(path, "/system/etc/init/atrace.rc"))
 		return;
 
-	static bool rc_inserted = false;
-	if (rc_inserted) {
-		stop_vfs_read_hook();
-		return;
-	}
+	//static bool rc_inserted = false;
+	//if (rc_inserted) {
+	//	stop_vfs_read_hook();
+	//	return;
+	//}
 
 	pr_info("ksu_file_open: matched target path: %s opened by: %s\n", path, current->comm);
 
@@ -293,12 +330,9 @@ void ksu_exec_bootscript(struct file *file, const struct cred *cred)
 		return;
 	}
 
-	pr_info("execprog: executing /dev/ksud.sh\n");
-	char *args[] = {"/system/bin/sh", "/dev/ksud.sh", NULL};
-	int umh_ret = call_usermodehelper(args[0], args, NULL, UMH_WAIT_EXEC);
-	pr_info("%s: umh returned %d\n", __func__, umh_ret);
-	
-	rc_inserted = true;
+	ksu_tiny_execprog_thread();
+
+	// rc_inserted = true;
 	return;
 }
 
