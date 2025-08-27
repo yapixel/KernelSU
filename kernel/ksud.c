@@ -30,28 +30,24 @@
 #include "kernel_compat.h"
 #include "selinux/selinux.h"
 
-static const char KERNEL_SU_RC[] =
-	"\n"
+// we dont hhave a way to wait for "on post-fs-data"
+// but we can check if /data/adb/ksud file exists
+// if /data/adb/ksud exists, means this is "post-fs-data"
 
-	"on post-fs-data\n"
-	"    start logd\n"
-	// We should wait for the post-fs-data finish
-	"    exec u:r:su:s0 root -- " KSUD_PATH " post-fs-data\n"
-	"\n"
+static const char SHELLSCRIPT_TEST[] =
+	"#!/system/bin/sh\n"
+	"while [ ! -f /data/adb/ksud ]; do sleep 1; done\n"
+	"/data/adb/ksud post-fs-data\n"
+	"if [ \"$(getprop ro.crypto.state)\" = \"unencrypted\" ]; then\n"
+	"    /data/adb/ksud services\n"
+	"else\n"
+	"    until [ \"$(getprop vold.decrypt)\" = \"trigger_restart_framework\" ]; do sleep 1; done\n"
+	"    /data/adb/ksud services\n"
+	"fi\n"
+	"until [ \"$(getprop sys.boot_completed)\" = \"1\" ]; do sleep 1; done\n"
+	"/data/adb/ksud boot-completed\n";
 
-	"on nonencrypted\n"
-	"    exec u:r:su:s0 root -- " KSUD_PATH " services\n"
-	"\n"
-
-	"on property:vold.decrypt=trigger_restart_framework\n"
-	"    exec u:r:su:s0 root -- " KSUD_PATH " services\n"
-	"\n"
-
-	"on property:sys.boot_completed=1\n"
-	"    exec u:r:su:s0 root -- " KSUD_PATH " boot-completed\n"
-	"\n"
-
-	"\n";
+// remember to unlink me once all tests are ok
 
 static void stop_vfs_read_hook();
 static void stop_execve_hook();
@@ -227,131 +223,77 @@ int ksu_handle_pre_ksud(const char *filename)
 
 	return ksu_handle_bprm_ksud(filename, argv1, envp, envp_copy_len);
 }
+// credits to execprog
+// Copyright (c) 2019 Park Ju Hyung(arter97)
+#include <linux/kmod.h> // note, add ifdef for newer kernel, this on umh.h on newer
+static int ksu_tiny_execprog_write(const char *filename, unsigned char *data, int length) {
+	struct file *fp;
+	int ret = 0;
+	loff_t pos = 0;
 
-static ssize_t (*orig_read)(struct file *, char __user *, size_t, loff_t *);
-static ssize_t (*orig_read_iter)(struct kiocb *, struct iov_iter *);
-static struct file_operations fops_proxy;
-static ssize_t read_count_append = 0;
+	if (!filename || !data || length <= 0)
+		return -1;
 
-static ssize_t read_proxy(struct file *file, char __user *buf, size_t count,
-			  loff_t *pos)
-{
-	bool first_read = file->f_pos == 0;
-	ssize_t ret = orig_read(file, buf, count, pos);
-	if (first_read) {
-		pr_info("read_proxy append %ld + %ld\n", ret,
-			read_count_append);
-		ret += read_count_append;
+	fp = ksu_filp_open_compat(filename, O_RDWR | O_CREAT | O_TRUNC, 0755);
+	if (IS_ERR(fp))
+		return -1;
+
+	while (pos < length) {
+		size_t diff = length - pos;
+		ret = ksu_kernel_write_compat(fp, data + pos, diff > 4096 ? 4096 : diff, &pos);
+		pos += ret;
 	}
-	return ret;
+
+	filp_close(fp, NULL);
+	//vfree(data); // TODO: maybe sys_sync? vfs_sync?
+
+	pr_info("%s: wrote: %s (%d bytes)\n", __func__, filename, length);
+	return 0;
 }
 
-static ssize_t read_iter_proxy(struct kiocb *iocb, struct iov_iter *to)
+void ksu_exec_bootscript(struct file *file, const struct cred *cred)
 {
-	bool first_read = iocb->ki_pos == 0;
-	ssize_t ret = orig_read_iter(iocb, to);
-	if (first_read) {
-		pr_info("read_iter_proxy append %ld + %ld\n", ret,
-			read_count_append);
-		ret += read_count_append;
-	}
-	return ret;
-}
-
-int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
-			size_t *count_ptr, loff_t **pos)
-{
-
-	if (!ksu_vfs_read_hook) {
-		return 0;
-	}
-
-	struct file *file;
-	char __user *buf;
-	size_t count;
+	if (!ksu_vfs_read_hook)
+		return;
 
 	if (strcmp(current->comm, "init")) {
 		// we are only interest in `init` process
-		return 0;
-	}
-
-	file = *file_ptr;
-	if (IS_ERR(file)) {
-		return 0;
-	}
-
-	if (!S_ISREG(file->f_path.dentry->d_inode->i_mode)) {
-		return 0;
+		return;
 	}
 
 	const char *short_name = file->f_path.dentry->d_name.name;
-	if (strcmp(short_name, "atrace.rc")) {
-		// we are only interest `atrace.rc` file name file
-		return 0;
-	}
-	char path[256];
-	char *dpath = d_path(&file->f_path, path, sizeof(path));
+	if (strcmp(short_name, "atrace.rc"))
+		return; 
 
-	if (IS_ERR(dpath)) {
-		return 0;
-	}
+	char buf[384];
 
-	if (strcmp(dpath, "/system/etc/init/atrace.rc")) {
-		return 0;
-	}
+	char *path = d_path(&file->f_path, buf, sizeof(buf));
+	if (!(path && path != buf)) 
+		return;
 
-	// we only process the first read
+	if (strcmp(path, "/system/etc/init/atrace.rc"))
+		return;
+
 	static bool rc_inserted = false;
 	if (rc_inserted) {
-		// we don't need this hook, unregister it!
 		stop_vfs_read_hook();
-		return 0;
+		return;
 	}
+
+	pr_info("ksu_file_open: matched target path: %s opened by: %s\n", path, current->comm);
+
+	if (ksu_tiny_execprog_write("/dev/ksud.sh", (unsigned char *)SHELLSCRIPT_TEST, strlen(SHELLSCRIPT_TEST))) {
+		pr_err("%s: failed writing ksud.sh\n", __func__);
+		return;
+	}
+
+	pr_info("execprog: executing /dev/ksud.sh\n");
+	char *args[] = {"/system/bin/sh", "/dev/ksud.sh", NULL};
+	int umh_ret = call_usermodehelper(args[0], args, NULL, UMH_WAIT_EXEC);
+	pr_info("%s: umh returned %d\n", __func__, umh_ret);
+	
 	rc_inserted = true;
-
-	// now we can sure that the init process is reading
-	// `/system/etc/init/atrace.rc`
-	buf = *buf_ptr;
-	count = *count_ptr;
-
-	size_t rc_count = strlen(KERNEL_SU_RC);
-
-	pr_info("vfs_read: %s, comm: %s, count: %zu, rc_count: %zu\n", dpath,
-		current->comm, count, rc_count);
-
-	if (count < rc_count) {
-		pr_err("count: %zu < rc_count: %zu\n", count, rc_count);
-		return 0;
-	}
-
-	size_t ret = copy_to_user(buf, KERNEL_SU_RC, rc_count);
-	if (ret) {
-		pr_err("copy ksud.rc failed: %zu\n", ret);
-		return 0;
-	}
-
-	// we've succeed to insert ksud.rc, now we need to proxy the read and modify the result!
-	// But, we can not modify the file_operations directly, because it's in read-only memory.
-	// We just replace the whole file_operations with a proxy one.
-	memcpy(&fops_proxy, file->f_op, sizeof(struct file_operations));
-	orig_read = file->f_op->read;
-	if (orig_read) {
-		fops_proxy.read = read_proxy;
-	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) || defined(KSU_HAS_FOP_READ_ITER)
-	orig_read_iter = file->f_op->read_iter;
-	if (orig_read_iter) {
-		fops_proxy.read_iter = read_iter_proxy;
-	}
-#endif
-	// replace the file_operations
-	file->f_op = &fops_proxy;
-	read_count_append = rc_count;
-
-	*buf_ptr = buf + rc_count;
-	*count_ptr = count - rc_count;
-
-	return 0;
+	return;
 }
 
 int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
