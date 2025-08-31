@@ -262,6 +262,12 @@ static bool is_system_bin_su()
 	return (current->mm->exe_file && !strcmp(current->mm->exe_file->f_path.dentry->d_name.name, "su"));
 }
 
+struct mount_entry {
+    char *umountable;
+    struct list_head list;
+};
+LIST_HEAD(mount_list);
+
 LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		     unsigned long arg4, unsigned long arg5)
 {
@@ -293,6 +299,39 @@ LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long 
 #ifdef CONFIG_KSU_DEBUG
 	pr_info("option: 0x%x, cmd: %ld\n", option, arg2);
 #endif
+
+	#define CMD_ADD_TRY_UMOUNT 10001 //change me later
+	if (arg2 == CMD_ADD_TRY_UMOUNT) {
+		struct mount_entry *new_entry;
+		char buf[384];
+		memzero_explicit(buf, 384);
+
+		if (copy_from_user(buf, (const char __user *)arg3, sizeof(buf) - 1)) {
+			pr_err("failed to copy user string\n");
+			return 0;
+		}
+		buf[384 - 1] = '\0';
+		
+		new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+		if (!new_entry)
+			return 0;
+		
+		new_entry->umountable = kstrdup(buf, GFP_KERNEL);
+		if (!new_entry->umountable) {
+			kfree(new_entry);
+			return 0;
+		}
+		
+		list_add(&new_entry->list, &mount_list);
+
+		pr_info("cmd_add_try_umount: %s\n", buf);
+		ksu_unmountable_count++;
+
+		if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+		return 0;
+	}
 
 	if (arg2 == CMD_BECOME_MANAGER) {
 		if (from_manager) {
@@ -577,12 +616,6 @@ static void try_umount(const char *mnt, int flags)
 	path_put(&path);
 #endif
 }
-
-struct mount_entry {
-    char *umountable;
-    struct list_head list;
-};
-LIST_HEAD(mount_list);
 
 LSM_HANDLER_TYPE ksu_handle_setuid(struct cred *new, const struct cred *old)
 {
