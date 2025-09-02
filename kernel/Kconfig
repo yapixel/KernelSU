@@ -58,14 +58,6 @@ config KSU_SUSFS_SUS_MOUNT
       - Mounts mounted by process with ksu domain will be forced to be assigned the dev name "KSU".
       - mnt_id and mnt_group_id of the sus mount will be assigned to a much bigger number to solve the issue of id not being contiguous.  
 
-config KSU_SUSFS_TRY_UMOUNT
-    bool "Enable to use ksu's ksu_try_umount"
-    depends on KSU_SUSFS
-    default y
-    help
-      - Allow using ksu_try_umount to umount other user-defined mount paths prior to ksu's default umount paths.
-      - Effective on all NO-root-access-granted processes.
-
 config KSU_SUSFS_SPOOF_UNAME
     bool "Enable to spoof uname"
     depends on KSU_SUSFS
