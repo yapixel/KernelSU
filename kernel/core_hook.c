@@ -333,6 +333,7 @@ LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long 
 		
 		pr_info("cmd_add_try_umount: %s added!\n", buf);
 		list_add(&new_entry->list, &mount_list);
+		ksu_unmountable_count++;
 
 		if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
 			pr_err("prctl reply error, cmd: %lu\n", arg2);
