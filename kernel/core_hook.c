@@ -552,24 +552,6 @@ LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long 
 			return 0;
 		}
 #endif //#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-		if (arg2 == CMD_SUSFS_ADD_SUS_MOUNT) {
-			int error = 0;
-			if (!ksu_access_ok((void __user*)arg3, sizeof(struct st_susfs_sus_mount))) {
-				pr_err("susfs: CMD_SUSFS_ADD_SUS_MOUNT -> arg3 is not accessible\n");
-				return 0;
-			}
-			if (!ksu_access_ok((void __user*)arg5, sizeof(error))) {
-				pr_err("susfs: CMD_SUSFS_ADD_SUS_MOUNT -> arg5 is not accessible\n");
-				return 0;
-			}
-			error = susfs_add_sus_mount((struct st_susfs_sus_mount __user*)arg3);
-			pr_info("susfs: CMD_SUSFS_ADD_SUS_MOUNT -> ret: %d\n", error);
-			if (copy_to_user((void __user*)arg5, &error, sizeof(error)))
-				pr_info("susfs: copy_to_user() failed\n");
-			return 0;
-		}
-#endif //#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 		if (arg2 == CMD_SUSFS_SET_UNAME) {
 			int error = 0;
@@ -632,9 +614,6 @@ LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long 
 			}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 			enabled_features |= (1 << 0);
-#endif
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-			enabled_features |= (1 << 1);
 #endif
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 			enabled_features |= (1 << 8);

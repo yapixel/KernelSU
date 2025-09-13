@@ -48,16 +48,6 @@ config KSU_SUSFS_SUS_PATH
       - Use with cautious as it may cause performance loss and will be vulnerable to side channel attacks,
         just disable this feature if it doesn't work for you or you don't need it at all.
 
-config KSU_SUSFS_SUS_MOUNT
-    bool "Enable to hide suspicious mounts"
-    depends on KSU_SUSFS
-    default y
-    help
-      - Allow hiding the user-defined mount paths from /proc/self/[mounts|mountinfo|mountstat].
-      - Effective on all processes for hiding mount entries.
-      - Mounts mounted by process with ksu domain will be forced to be assigned the dev name "KSU".
-      - mnt_id and mnt_group_id of the sus mount will be assigned to a much bigger number to solve the issue of id not being contiguous.  
-
 config KSU_SUSFS_SPOOF_UNAME
     bool "Enable to spoof uname"
     depends on KSU_SUSFS
