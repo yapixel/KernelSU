@@ -7,6 +7,15 @@ config KSU
 	help
 	  Enable kernel-level root privileges on Android System.
 
+config KSU_THRONE_TRACKER_LEGACY
+	bool "Use legacy throne tracker (packages.list scanning)"
+	depends on KSU
+	default n
+	help
+	  Use legacy throne tracker that scans packages.list for app UIDs.
+	  This is kept for Ultra-Legacy Linux 3.X kernels which are prone to deadlocks.
+	  Enable this if default scanning deadlocks/crashes on you.
+
 config KSU_DEBUG
 	bool "KernelSU debug mode"
 	depends on KSU
