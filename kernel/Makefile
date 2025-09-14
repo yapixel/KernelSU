@@ -11,13 +11,7 @@ kernelsu-objs += selinux/selinux.o
 kernelsu-objs += selinux/sepolicy.o
 kernelsu-objs += selinux/rules.o
 
-#ifeq ($(shell [ $(VERSION) -lt 4 ] && echo $$?),0)
-#kernelsu-objs += throne_tracker_legacy.o
-#else
-#kernelsu-objs += throne_tracker.o
-#endif
-
-ifeq ($(CONFIG_KSU_THRONE_TRACKER_LEGACY),y)
+ifeq ($(shell { [ $(VERSION) -lt 4 ] || [ "$CONFIG_KSU_THRONE_TRACKER_LEGACY" = "y" ]; } && echo $$?),0)
 $(info -- KernelSU/compat: using legacy throne tracker)
 kernelsu-objs += throne_tracker_legacy.o
 else
