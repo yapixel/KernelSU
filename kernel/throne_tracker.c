@@ -188,8 +188,10 @@ FILLDIR_RETURN_TYPE user_data_actor(struct dir_context *ctx, const char *name,
 	struct kstat stat;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 	err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	err = vfs_getattr(&path, &stat);
+#else
+	err = vfs_getattr(path.mnt, path.dentry, &stat);
 #endif
 	path_put(&path);
 	
