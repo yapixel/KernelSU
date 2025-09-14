@@ -289,8 +289,10 @@ FILLDIR_RETURN_TYPE user_data_actor(MY_ACTOR_CTX_ARG, const char *name,
 	struct kstat stat;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0) || defined(KSU_HAS_NEW_VFS_GETATTR)
 	err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	err = vfs_getattr(&path, &stat);
+#else
+	err = vfs_getattr(path.mnt, path.dentry, &stat);
 #endif
 	path_put(&path);
 	
