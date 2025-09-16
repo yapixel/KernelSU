@@ -457,13 +457,14 @@ static int throne_tracker_thread(void *data)
 }
 void track_throne()
 {
+#ifndef CONFIG_KSU_THRONE_TRACKER_ALWAYS_THREADED
 	static bool throne_tracker_first_run __read_mostly = true;
 	if (unlikely(throne_tracker_first_run)) {
 		track_throne_function();
 		throne_tracker_first_run = false;
 		return;
 	}
-
+#endif
 	smp_mb();
 	if (throne_thread != NULL) // single instance lock
 		return;
