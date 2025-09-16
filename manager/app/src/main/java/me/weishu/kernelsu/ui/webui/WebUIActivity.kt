@@ -2,9 +2,9 @@ package me.weishu.kernelsu.ui.webui
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.view.ViewGroup.MarginLayoutParams
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -13,7 +13,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updateLayoutParams
 import androidx.webkit.WebViewAssetLoader
 import me.weishu.kernelsu.ui.util.createRootShell
 import java.io.File
@@ -22,6 +21,7 @@ import java.io.File
 class WebUIActivity : ComponentActivity() {
     private val rootShell by lazy { createRootShell(true) }
     private var webView: WebView? = null
+    private lateinit var insets: Insets
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -48,11 +48,13 @@ class WebUIActivity : ComponentActivity() {
 
         val moduleDir = "/data/adb/modules/${moduleId}"
         val webRoot = File("${moduleDir}/webroot")
+        insets = Insets(0, 0, 0, 0)
+
         val webViewAssetLoader = WebViewAssetLoader.Builder()
             .setDomain("mui.kernelsu.org")
             .addPathHandler(
                 "/",
-                SuFilePathHandler(this, webRoot, rootShell)
+                SuFilePathHandler(this, webRoot, rootShell) { insets }
             )
             .build()
 
@@ -83,16 +85,18 @@ class WebUIActivity : ComponentActivity() {
 
         val webView = WebView(this).apply {
             webView = this
+            setBackgroundColor(Color.TRANSPARENT)
+            val density = resources.displayMetrics.density
 
-            ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
-                val inset = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-                view.updateLayoutParams<MarginLayoutParams> {
-                    leftMargin = inset.left
-                    rightMargin = inset.right
-                    topMargin = inset.top
-                    bottomMargin = inset.bottom
-                }
-                return@setOnApplyWindowInsetsListener insets
+            ViewCompat.setOnApplyWindowInsetsListener(this) { _, windowInsets ->
+                val inset = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+                insets = Insets(
+                    top = (inset.top / density).toInt(),
+                    bottom = (inset.bottom / density).toInt(),
+                    left = (inset.left / density).toInt(),
+                    right = (inset.right / density).toInt()
+                )
+                WindowInsetsCompat.CONSUMED
             }
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
