@@ -23,7 +23,7 @@ uid_t ksu_manager_uid = KSU_INVALID_UID;
 
 static struct task_struct *throne_thread;
 
-#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list.tmp"
+#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list"
 #define USER_DATA_PATH "/data/user_de/0"
 #define USER_DATA_PATH_LEN 256
 
@@ -463,7 +463,20 @@ static void track_throne_function()
 		pr_warn("Failed to scan user data directory (%d), falling back to packages.list\n", ret);
 		
 		// fallback to packages.list method
-		struct file *fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+		struct file *fp;
+		int tries = 0;
+
+		while (tries++ < 10) {
+			if (!is_lock_held(SYSTEM_PACKAGES_LIST_PATH)) {
+				fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+				if (!IS_ERR(fp)) 
+					break;
+			}
+			
+			pr_info("%s: waiting for %s\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
+			msleep(100); // migth as well add a delay
+		};
+
 		if (IS_ERR(fp)) {
 			pr_err("Both user data scan and packages.list failed: %ld\n", PTR_ERR(fp));
 			goto out;
