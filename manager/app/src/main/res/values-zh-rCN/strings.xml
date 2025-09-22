@@ -142,4 +142,6 @@
     <string name="settings_enable_notmpfs">禁用 tmpfs 挂载</string>
     <string name="settings_enable_notmpfs_summary">不挂临时文件系统。需重启生效。</string>
     <string name="settings_failed_to_update_notmpfs">.notmpfs 状态更新失败</string>
+    <string name="settings_use_official_app_name">使用原版应用名</string>
+    <string name="settings_use_official_app_name_summary">在主页显示 KernelSU 替代 KowSU.</string>
 </resources>
