@@ -33,6 +33,10 @@
 #include "selinux/sepolicy.c"
 #include "selinux/rules.c"
 
+#ifdef CONFIG_KSU_KPROBES_KSUD
+#include "kp_ksud.c"
+#endif
+
 struct cred* ksu_cred;
 
 extern void ksu_supercalls_init();
@@ -65,6 +69,10 @@ int __init kernelsu_init(void)
 	ksu_allowlist_init();
 
 	ksu_throne_tracker_init();
+
+#ifdef CONFIG_KSU_KPROBES_KSUD
+	kp_ksud_init();
+#endif
 
 	return 0;
 }
