@@ -12,6 +12,10 @@
 #include "ksu.h"
 #include "throne_tracker.h"
 
+#ifdef CONFIG_KSU_KPROBES_KSUD
+extern void kp_ksud_init();
+#endif
+
 static struct workqueue_struct *ksu_workqueue;
 
 bool ksu_queue_work(struct work_struct *work)
@@ -46,6 +50,10 @@ int __init kernelsu_init(void)
 	ksu_throne_tracker_init();
 
 	ksu_sucompat_init(); // so the feature is registered
+
+#ifdef CONFIG_KSU_KPROBES_KSUD
+	kp_ksud_init();
+#endif
 
 	return 0;
 }
