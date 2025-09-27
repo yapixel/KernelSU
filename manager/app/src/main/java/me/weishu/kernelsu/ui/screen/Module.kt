@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
@@ -668,7 +669,7 @@ fun ModuleItem(
                         }
                     }
 
-                    Spacer(modifier = Modifier.weight(0.1f, true))
+                    Spacer(Modifier.width(12.dp))
                 }
 
                 if (module.hasWebUi) {
@@ -720,7 +721,7 @@ fun ModuleItem(
                         }
                     }
 
-                    Spacer(modifier = Modifier.weight(0.1f, true))
+                    Spacer(Modifier.width(12.dp))
                 }
 
                 FilledTonalButton(
@@ -741,7 +742,7 @@ fun ModuleItem(
                             contentDescription = null,
                         )
                     }
-                    if (!module.hasActionScript && !module.hasWebUi && updateUrl.isEmpty()) {
+                    if (!module.hasActionScript && !module.hasWebUi || updateUrl.isEmpty()) {
                         Text(
                             modifier = Modifier.padding(start = 7.dp),
                             fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
