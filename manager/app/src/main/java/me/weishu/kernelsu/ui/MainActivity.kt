@@ -1,6 +1,5 @@
 package me.weishu.kernelsu.ui
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -71,12 +70,16 @@ class MainActivity : ComponentActivity() {
         if (isManager) install()
 
         // Check if launched with a ZIP file
-        val zipUri: Uri? = when (intent?.action) {
-            Intent.ACTION_VIEW, Intent.ACTION_SEND -> {
-                intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        val zipUri: ArrayList<Uri>? = if (intent.data != null) {
+            arrayListOf(intent.data!!)
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableArrayListExtra("uris", Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra("uris")
             }
-            else -> null
-        }?.takeIf { it.toString().endsWith(".zip", ignoreCase = true) }
+        }
 
         setContent {
             KernelSUTheme {
@@ -88,10 +91,10 @@ class MainActivity : ComponentActivity() {
                 val navigator = navController.rememberDestinationsNavigator()
 
                 LaunchedEffect(zipUri) {
-                    if (zipUri != null) {
+                    if (!zipUri.isNullOrEmpty()) {
                         navigator.navigate(
                             FlashScreenDestination(
-                                FlashIt.FlashModules(listOf(zipUri))
+                                FlashIt.FlashModules(zipUri)
                             )
                         )
                     }
