@@ -31,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
@@ -184,7 +185,7 @@ private fun AppProfileInner(
         AppMenuBox(packageName) {
             ListItem(
                 headlineContent = { Text(appLabel) },
-                supportingContent = { Text(packageName) },
+                supportingContent = { Text(packageName, color = MaterialTheme.colorScheme.outline) },
                 leadingContent = appIcon,
             )
         }
@@ -289,7 +290,7 @@ private fun ProfileBox(
 ) {
     ListItem(
         headlineContent = { Text(stringResource(R.string.profile)) },
-        supportingContent = { Text(mode.text) },
+        supportingContent = { Text(mode.text, color = MaterialTheme.colorScheme.outline) },
         leadingContent = { Icon(Icons.Filled.AccountCircle, null) },
     )
     HorizontalDivider(thickness = Dp.Hairline)
