@@ -64,6 +64,7 @@ import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.AppProfileTemplateScreenDestination
 import com.ramcosta.composedestinations.generated.destinations.TemplateEditorScreenDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
+import com.ramcosta.composedestinations.result.ResultBackNavigator
 import kotlinx.coroutines.launch
 import me.weishu.kernelsu.Natives
 import me.weishu.kernelsu.R
@@ -90,6 +91,7 @@ import me.weishu.kernelsu.ui.viewmodel.getTemplateInfoById
 fun AppProfileScreen(
     navigator: DestinationsNavigator,
     appInfo: SuperUserViewModel.AppInfo,
+    resultNavigator: ResultBackNavigator<Boolean>,
 ) {
     val context = LocalContext.current
     val snackBarHost = LocalSnackbarHost.current
@@ -111,7 +113,7 @@ fun AppProfileScreen(
     Scaffold(
         topBar = {
             TopBar(
-                onBack = dropUnlessResumed { navigator.popBackStack() },
+                onBack = dropUnlessResumed { resultNavigator.navigateBack(result = true) },
                 scrollBehavior = scrollBehavior
             )
         },

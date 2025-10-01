@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,6 +31,8 @@ import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.AppProfileScreenDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
+import com.ramcosta.composedestinations.result.NavResult
+import com.ramcosta.composedestinations.result.ResultRecipient
 import kotlinx.coroutines.launch
 import me.weishu.kernelsu.Natives
 import me.weishu.kernelsu.R
@@ -39,22 +42,24 @@ import me.weishu.kernelsu.ui.viewmodel.SuperUserViewModel
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Destination<RootGraph>
 @Composable
-fun SuperUserScreen(navigator: DestinationsNavigator) {
+fun SuperUserScreen(
+    navigator: DestinationsNavigator,
+    appProfileResultRecipient: ResultRecipient<AppProfileScreenDestination, Boolean>
+) {
     val viewModel = viewModel<SuperUserViewModel>()
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     val listState = rememberLazyListState()
 
     LaunchedEffect(key1 = navigator) {
-        viewModel.search = ""
         if (viewModel.appList.isEmpty()) {
             viewModel.fetchAppList()
         }
     }
 
-    LaunchedEffect(viewModel.search) {
-        if (viewModel.search.isEmpty()) {
-            listState.scrollToItem(0)
+    appProfileResultRecipient.onNavResult {
+        scope.launch {
+            viewModel.fetchAppList()
         }
     }
 
@@ -64,7 +69,7 @@ fun SuperUserScreen(navigator: DestinationsNavigator) {
                 title = { Text(stringResource(R.string.superuser)) },
                 searchText = viewModel.search,
                 onSearchTextChange = { viewModel.search = it },
-                onClearClick = { viewModel.search = "" },
+                onClearClick = { viewModel.search = TextFieldValue("") },
                 dropdownContent = {
                     var showDropdown by remember { mutableStateOf(false) }
 
@@ -84,6 +89,7 @@ fun SuperUserScreen(navigator: DestinationsNavigator) {
                             }, onClick = {
                                 scope.launch {
                                     viewModel.fetchAppList()
+                                    listState.scrollToItem(0)
                                 }
                                 showDropdown = false
                             })
