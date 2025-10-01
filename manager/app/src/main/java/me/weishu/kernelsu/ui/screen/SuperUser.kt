@@ -11,6 +11,7 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,6 +20,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -139,17 +141,29 @@ private fun AppItem(
         headlineContent = { Text(app.label) },
         supportingContent = {
             Column {
-                Text(app.packageName)
+                Text(app.packageName, color = MaterialTheme.colorScheme.outline)
                 FlowRow {
                     if (app.allowSu) {
-                        LabelText(label = "ROOT")
+                        LabelText(
+                            label = "ROOT",
+                            textColor = MaterialTheme.colorScheme.onPrimary,
+                            backgroundColor = MaterialTheme.colorScheme.primary
+                        )
                     } else {
                         if (Natives.uidShouldUmount(app.uid)) {
-                            LabelText(label = "UMOUNT")
+                            LabelText(
+                                label = "UMOUNT",
+                                textColor = MaterialTheme.colorScheme.onSecondary,
+                                backgroundColor = MaterialTheme.colorScheme.secondary
+                            )
                         }
                     }
                     if (app.hasCustomProfile) {
-                        LabelText(label = "CUSTOM")
+                        LabelText(
+                            label = "CUSTOM",
+                            textColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
                     }
                 }
             }
@@ -171,12 +185,16 @@ private fun AppItem(
 }
 
 @Composable
-fun LabelText(label: String) {
+fun LabelText(
+    label: String,
+    textColor: Color = MaterialTheme.colorScheme.onPrimary,
+    backgroundColor: Color = MaterialTheme.colorScheme.primary
+) {
     Box(
         modifier = Modifier
             .padding(top = 4.dp, end = 4.dp)
             .background(
-                Color.Black,
+                color = backgroundColor,
                 shape = RoundedCornerShape(4.dp)
             )
     ) {
@@ -184,8 +202,9 @@ fun LabelText(label: String) {
             text = label,
             modifier = Modifier.padding(vertical = 2.dp, horizontal = 5.dp),
             style = TextStyle(
-                fontSize = 8.sp,
-                color = Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor,
             )
         )
     }

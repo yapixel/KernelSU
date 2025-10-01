@@ -625,6 +625,7 @@ fun ModuleItem(
 
             Text(
                 text = module.description,
+                color = MaterialTheme.colorScheme.outline,
                 fontSize = MaterialTheme.typography.bodySmall.fontSize,
                 fontFamily = MaterialTheme.typography.bodySmall.fontFamily,
                 lineHeight = MaterialTheme.typography.bodySmall.lineHeight,
