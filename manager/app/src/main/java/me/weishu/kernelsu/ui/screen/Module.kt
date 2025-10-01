@@ -79,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -149,7 +150,7 @@ fun ModuleScreen(navigator: DestinationsNavigator) {
                 title = { Text(stringResource(R.string.module)) },
                 searchText = viewModel.search,
                 onSearchTextChange = { viewModel.search = it },
-                onClearClick = { viewModel.search = "" },
+                onClearClick = { viewModel.search = TextFieldValue("") },
                 dropdownContent = {
                     var showDropdown by remember { mutableStateOf(false) }
 
