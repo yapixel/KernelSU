@@ -22,12 +22,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewAssetLoader
+import kotlinx.coroutines.launch
 import me.weishu.kernelsu.ui.util.createRootShell
+import me.weishu.kernelsu.ui.viewmodel.SuperUserViewModel
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
@@ -45,6 +49,7 @@ class WebUIActivity : ComponentActivity() {
     private lateinit var saveFileLauncher: ActivityResultLauncher<Intent>
     private var pendingDownloadData: ByteArray? = null
     private var pendingDownloadSuggestedFilename: String? = null
+    private val superUserViewModel: SuperUserViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -55,6 +60,10 @@ class WebUIActivity : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
+
+        lifecycleScope.launch {
+            superUserViewModel.fetchAppList()
+        }
 
         fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {

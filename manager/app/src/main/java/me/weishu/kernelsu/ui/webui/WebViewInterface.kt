@@ -25,6 +25,7 @@ import com.topjohnwu.superuser.internal.UiThreadHandler
 import me.weishu.kernelsu.ui.util.createRootShell
 import me.weishu.kernelsu.ui.util.listModules
 import me.weishu.kernelsu.ui.util.withNewRootShell
+import me.weishu.kernelsu.ui.viewmodel.SuperUserViewModel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -208,15 +209,11 @@ class WebViewInterface(
 
     @JavascriptInterface
     fun listSystemPackages(): String {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        val packageNames = packages
-            .mapNotNull { pkg ->
-                val appInfo = pkg.applicationInfo
-                if (appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
-                    pkg.packageName
-                } else null
+        val packageNames = SuperUserViewModel.apps
+            .filter { appInfo ->
+                appInfo.packageInfo.applicationInfo?.let { it.flags and ApplicationInfo.FLAG_SYSTEM != 0 } ?: false
             }
+            .map { it.packageName }
             .sorted()
         val jsonArray = JSONArray()
         for (pkgName in packageNames) {
@@ -227,15 +224,11 @@ class WebViewInterface(
 
     @JavascriptInterface
     fun listUserPackages(): String {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        val packageNames = packages
-            .mapNotNull { pkg ->
-                val appInfo = pkg.applicationInfo
-                if (appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0) {
-                    pkg.packageName
-                } else null
+        val packageNames = SuperUserViewModel.apps
+            .filter { appInfo ->
+                appInfo.packageInfo.applicationInfo?.let { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 } ?: false
             }
+            .map { it.packageName }
             .sorted()
         val jsonArray = JSONArray()
         for (pkgName in packageNames) {
@@ -246,9 +239,7 @@ class WebViewInterface(
 
     @JavascriptInterface
     fun listAllPackages(): String {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        val packageNames = packages.map { it.packageName }.sorted()
+        val packageNames = SuperUserViewModel.apps.map { it.packageName }.sorted()
         val jsonArray = JSONArray()
         for (pkgName in packageNames) {
             jsonArray.put(pkgName)
@@ -259,23 +250,24 @@ class WebViewInterface(
     @RequiresApi(Build.VERSION_CODES.P)
     @JavascriptInterface
     fun getPackagesInfo(packageNamesJson: String): String {
-        val pm = context.packageManager
         val packageNames = JSONArray(packageNamesJson)
         val jsonArray = JSONArray()
+        val appMap = SuperUserViewModel.apps.associateBy { it.packageName }
         for (i in 0 until packageNames.length()) {
             val pkgName = packageNames.getString(i)
-            try {
-                val pkg = pm.getPackageInfo(pkgName, 0)
-                val appInfo = pkg.applicationInfo
+            val appInfo = appMap[pkgName]
+            if (appInfo != null) {
+                val pkg = appInfo.packageInfo
+                val app = pkg.applicationInfo
                 val obj = JSONObject()
                 obj.put("packageName", pkg.packageName)
                 obj.put("versionName", pkg.versionName ?: "")
                 obj.put("versionCode", pkg.longVersionCode)
-                obj.put("appLabel", if (appInfo != null) pm.getApplicationLabel(appInfo).toString() else "")
-                obj.put("isSystem", appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
-                obj.put("uid", appInfo?.uid ?: JSONObject.NULL)
+                obj.put("appLabel", appInfo.label)
+                obj.put("isSystem", app != null && (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
+                obj.put("uid", app?.uid ?: JSONObject.NULL)
                 jsonArray.put(obj)
-            } catch (e: Exception) {
+            } else {
                 val obj = JSONObject()
                 obj.put("packageName", pkgName)
                 obj.put("error", "Package not found or inaccessible")
@@ -289,21 +281,21 @@ class WebViewInterface(
 
     @JavascriptInterface
     fun cacheAllPackageIcons(size: Int) {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
         val outputStream = java.io.ByteArrayOutputStream()
-        for (pkg in packages) {
-            val pkgName = pkg.packageName
-            if (packageIconCache.containsKey(pkgName)) continue
+        SuperUserViewModel.apps.forEach { appInfo ->
+            val pkgName = appInfo.packageName
+            if (packageIconCache.containsKey(pkgName)) return@forEach
             try {
-                val appInfo = pm.getApplicationInfo(pkgName, 0)
-                val drawable = pm.getApplicationIcon(appInfo)
-                val bitmap = drawableToBitmap(drawable, size)
-                outputStream.reset()
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                val byteArray = outputStream.toByteArray()
-                val iconBase64 = "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                packageIconCache[pkgName] = iconBase64
+                SuperUserViewModel.getAppIconDrawable(context, pkgName)?.let { drawable ->
+                    val bitmap = drawableToBitmap(drawable, size)
+                    outputStream.reset()
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                    val byteArray = outputStream.toByteArray()
+                    val iconBase64 = "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                    packageIconCache[pkgName] = iconBase64
+                } ?: run {
+                     packageIconCache[pkgName] = ""
+                }
             } catch (_: Exception) {
                 packageIconCache[pkgName] = ""
             }
@@ -312,7 +304,6 @@ class WebViewInterface(
 
     @JavascriptInterface
     fun getPackagesIcons(packageNamesJson: String, size: Int): String {
-        val pm = context.packageManager
         val packageNames = JSONArray(packageNamesJson)
         val jsonArray = JSONArray()
         val outputStream = java.io.ByteArrayOutputStream()
@@ -323,17 +314,19 @@ class WebViewInterface(
             var iconBase64 = packageIconCache[pkgName]
             if (iconBase64 == null) {
                 try {
-                    val appInfo = pm.getApplicationInfo(pkgName, 0)
-                    val drawable = pm.getApplicationIcon(appInfo)
-                    val bitmap = drawableToBitmap(drawable, size)
-                    outputStream.reset()
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                    val byteArray = outputStream.toByteArray()
-                    iconBase64 = "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                    SuperUserViewModel.getAppIconDrawable(context, pkgName)?.let { drawable ->
+                        val bitmap = drawableToBitmap(drawable, size)
+                        outputStream.reset()
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                        val byteArray = outputStream.toByteArray()
+                        iconBase64 = "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                    } ?: run {
+                        iconBase64 = ""
+                    }
                 } catch (_: Exception) {
                     iconBase64 = ""
                 }
-                packageIconCache[pkgName] = iconBase64
+                packageIconCache[pkgName] = iconBase64 ?: ""
             }
             obj.put("icon", iconBase64)
             jsonArray.put(obj)
