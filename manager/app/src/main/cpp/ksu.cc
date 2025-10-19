@@ -30,6 +30,9 @@
 #define CMD_IS_SU_ENABLED 14
 #define CMD_ENABLE_SU 15
 
+#define CMD_TOGGLE_AVC_SPOOF 10003
+#define CMD_IS_AVC_SPOOF_ENABLED 10004
+
 static bool ksuctl(int cmd, void* arg1, void* arg2) {
     int32_t result = 0;
     prctl(KERNEL_SU_OPTION, cmd, arg1, arg2, &result);
@@ -96,5 +99,15 @@ bool is_su_enabled() {
     bool enabled = true;
     // if ksuctl failed, we assume su is enabled, and it cannot be disabled.
     ksuctl(CMD_IS_SU_ENABLED, &enabled, nullptr);
+    return enabled;
+}
+
+bool set_avc_spoof_enabled(bool enabled) {
+    return ksuctl(CMD_TOGGLE_AVC_SPOOF, (void*) enabled, nullptr);
+}
+
+bool is_avc_spoof_enabled() {
+    bool enabled = true;
+    ksuctl(CMD_IS_AVC_SPOOF_ENABLED, &enabled, nullptr);
     return enabled;
 }

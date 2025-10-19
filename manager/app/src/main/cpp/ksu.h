@@ -83,4 +83,8 @@ bool set_su_enabled(bool enabled);
 
 bool is_su_enabled();
 
+bool set_avc_spoof_enabled(bool enabled);
+
+bool is_avc_spoof_enabled();
+
 #endif //KERNELSU_KSU_H

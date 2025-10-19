@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Compress
@@ -251,6 +252,25 @@ fun SettingScreen(navigator: DestinationsNavigator) {
                             withContext(Dispatchers.Main) {
                                 snackBarHost.showSnackbar(context.getString(R.string.settings_failed_to_update_notmpfs))
                             }
+                        }
+                    }
+                }
+            }
+
+            KsuIsValid() {
+                if (Natives.version >= Natives.MINIMAL_SUPPORTED_AVC_SPOOF) {
+                    var isAvcSpoofEnabled by rememberSaveable {
+                        mutableStateOf(Natives.isAvcSpoofEnabled())
+                    }
+                    SwitchItem(
+                        icon = Icons.AutoMirrored.Filled.Article,
+                        title = stringResource(id = R.string.settings_enable_avc_spoof),
+                        summary = stringResource(id = R.string.settings_enable_avc_spoof_summary),
+                        checked = isAvcSpoofEnabled,
+                    ) { checked ->
+                        val shouldEnable = checked
+                        if (Natives.setAvcSpoofEnabled(shouldEnable)) {
+                            isAvcSpoofEnabled = shouldEnable
                         }
                     }
                 }
