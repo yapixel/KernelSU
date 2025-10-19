@@ -147,4 +147,6 @@
     <string name="settings_failed_to_update_notmpfs">Failed to update .notmpfs</string>
     <string name="settings_use_official_app_name">Use official app name</string>
     <string name="settings_use_official_app_name_summary">Display KernelSU instead of KowSU in home page.</string>
+    <string name="settings_enable_avc_spoof">Enable avc spoofing</string>
+    <string name="settings_enable_avc_spoof_summary">Fix selinux context leak caused by avc denial in audit log.</string>
 </resources>
