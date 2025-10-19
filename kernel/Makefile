@@ -10,6 +10,10 @@ kernelsu-objs += ksud.o
 kernelsu-objs += embed_ksud.o
 kernelsu-objs += kernel_compat.o
 
+ifeq ($(CONFIG_KSU_EXTRAS),y)
+kernelsu-objs += extras.o
+endif
+
 ifeq ($(CONFIG_KSU_KPROBES_KSUD),y)
 kernelsu-objs += kp_ksud.o
 endif
