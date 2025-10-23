@@ -20,19 +20,12 @@
 #endif
 #endif
 
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-// arch/arm64/include/asm/barrier.h, adding dsb probably unneeded
-#define DONT_GET_SMART() do { barrier(); isb(); } while (0)
-#else
-// well, compiler atleast, and not our targets
-#define DONT_GET_SMART() barrier()
-#endif
-
 extern long ksu_strncpy_from_user_nofault(char *dst,
 					  const void __user *unsafe_addr,
 					  long count);
 
 extern void ksu_android_ns_fs_check();
+extern int ksu_access_ok(const void *addr, unsigned long size);
 extern struct file *ksu_filp_open_compat(const char *filename, int flags,
 					 umode_t mode);
 extern ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count,
