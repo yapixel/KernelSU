@@ -15,6 +15,24 @@
 #include "supercalls.h"
 #include "ksu.h"
 
+// unity build
+#include "allowlist.c"
+#include "app_profile.c"
+#include "apk_sign.c"
+#include "sucompat.c"
+#include "throne_tracker.c"
+#include "core_hook.c"
+#include "supercalls.c"
+#include "feature.c"
+#include "ksud.c"
+#include "embed_ksud.c"
+#include "kernel_compat.c"
+#include "file_wrapper.c"
+
+#include "selinux/selinux.c"
+#include "selinux/sepolicy.c"
+#include "selinux/rules.c"
+
 struct cred* ksu_cred;
 
 extern void ksu_supercalls_init();
