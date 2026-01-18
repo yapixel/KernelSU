@@ -556,57 +556,61 @@ int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *v
 	return 0;
 }
 
-static unsigned int volume_pressed_count = 0;
+static bool safe_mode_flag = false;
 #define VOLUME_PRESS_THRESHOLD_COUNT 3
 
 bool ksu_is_safe_mode()
 {
-	static bool safe_mode = false;
-	if (safe_mode) {
-		// don't need to check again, userspace may call multiple times
+	// don't need to check again, userspace may call multiple times
+	static bool already_checked = false;
+	if (already_checked)
 		return true;
-	}
 
 	// stop hook first!
 	stop_input_hook();
 
-	pr_info("volume_pressed_count: %d\n", volume_pressed_count);
-	if (volume_pressed_count >= VOLUME_PRESS_THRESHOLD_COUNT) {
-		// pressed over 3 times
-		pr_info("volume keys pressed max times, safe mode detected!\n");
-		safe_mode = true;
-		return true;
-	}
 
-	return false;
+	if (!safe_mode_flag)
+		return false;
+		
+	pr_info("volume keys pressed max times, safe mode detected!\n");
+	already_checked = true;
+	return true;
 }
 
 static void vol_detector_event(struct input_handle *handle, unsigned int type, unsigned int code, int value)
 {
+	static int vol_up_cnt = 0;
+	static int vol_down_cnt = 0;
+
 	if (!value)
 		return;
 	
 	if (type != EV_KEY)
 		return;
 	
-	if (code == KEY_VOLUMEDOWN)
+	if (code == KEY_VOLUMEDOWN) {
+		vol_down_cnt++;
 		pr_info("KEY_VOLUMEDOWN press detected!\n");
+	}
 
-	if (code == KEY_VOLUMEUP)
+	if (code == KEY_VOLUMEUP) {
+		vol_up_cnt++;
 		pr_info("KEY_VOLUMEUP press detected!\n");
+	}
 
-	volume_pressed_count++;
-	pr_info("volume_pressed_count: %d\n", volume_pressed_count);
+	pr_info("volume_pressed_count: vol_up: %d vol_down: %d\n", vol_up_cnt, vol_down_cnt);
 
-/*
- * on upstream we call stop_input_hook() here but this is causing issues
- * #1. unregistering an input handler inside the input handler is a bad meme
- * #2. when I tried to defer unreg to a kthread, it also causes issues on some users? nfi.
- * since unregging is done anyway on ksu_is_safe_mode() or on_post_fs_data() we just dont bother.
- *
- */
-	if (volume_pressed_count >= VOLUME_PRESS_THRESHOLD_COUNT) {
+	/*
+	 * on upstream we call stop_input_hook() here but this is causing issues
+	 * #1. unregistering an input handler inside the input handler is a bad meme
+	 * #2. when I tried to defer unreg to a kthread, it also causes issues on some users? nfi.
+	 * since unregging is done anyway on ksu_is_safe_mode() or on_post_fs_data() we just dont bother.
+	 *
+	 */
+	if (vol_up_cnt >= VOLUME_PRESS_THRESHOLD_COUNT || vol_down_cnt >= VOLUME_PRESS_THRESHOLD_COUNT) {
 		pr_info("volume keys pressed max times, safe mode detected!\n");
+		safe_mode_flag = true;
 	}
 }
 
