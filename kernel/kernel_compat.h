@@ -9,4 +9,8 @@
 #define WRITE_ONCE(x, y) (*(volatile typeof(x) *)&(x) = (typeof(x))(y))
 #endif
 
+#ifndef __ro_after_init
+#define __ro_after_init
+#endif
+
 #endif // __KSU_H_KERNEL_COMPAT
