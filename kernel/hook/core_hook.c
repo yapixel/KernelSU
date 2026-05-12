@@ -71,9 +71,7 @@ static struct security_hook_list ksu_hooks[] __ro_after_init = {
 #endif
 };
 
-static struct security_hook_list ksu_hooks_setprocattr[] __ro_after_init = {
-	LSM_HOOK_INIT(setprocattr, ksu_setprocattr),
-};
+static struct security_hook_list ksu_hooks_setprocattr[];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SECURITY_ADD_HOOKS_V2)
 
@@ -202,8 +200,22 @@ static void ksu_dethrone_selinux_setprocattr()
 
 #define ksu_security_add_hooks security_add_hooks
 #else
+
+static int ksu_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
+{
+	ksu_hide_setprocattr(name, value, size);
+	char *str = (char *)value;
+	if (str && str[1] && str[1] == 1)
+		return -EINVAL;
+
+	return 0;
+}
 #define ksu_security_add_hooks(a, b, c) security_add_hooks(a, b)
 #endif
+
+static struct security_hook_list ksu_hooks_setprocattr[] __ro_after_init = {
+	LSM_HOOK_INIT(setprocattr, ksu_setprocattr),
+};
 
 static __init void ksu_lsm_hook_init(void)
 {
