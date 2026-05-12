@@ -201,15 +201,103 @@ static void ksu_dethrone_selinux_setprocattr()
 #define ksu_security_add_hooks security_add_hooks
 #else
 
-static int ksu_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
+static int (*selinux_setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size) __read_mostly = NULL;
+static int ksu_setprocattr_wrapper(struct task_struct *p, char *name, void *value, size_t size)
 {
 	ksu_hide_setprocattr(name, value, size);
-	char *str = (char *)value;
-	if (str && str[1] && str[1] == 1)
-		return -EINVAL;
+	if (likely(selinux_setprocattr_fn))
+		return selinux_setprocattr_fn(p, name, value, size);
 
 	return 0;
 }
+
+static struct security_hook_list ksu_hooks_setprocattr[] __ro_after_init = {
+	LSM_HOOK_INIT(setprocattr, ksu_setprocattr_wrapper),
+};
+
+
+static void ksu_list_del_safe(struct list_head *entry)
+{
+	struct list_head *next = entry->next;
+	struct list_head *prev = entry->prev;
+
+	// on a linked list we have to patch both the before us and the next to us
+	if (!prev || !next)
+		return;
+
+	// smash prev->next, basically we write 'next' into 'prev->next'
+	unsigned long addr_p = (unsigned long)&prev->next;
+	unsigned long base_p = addr_p & PAGE_MASK;
+	unsigned long offset_p = addr_p & ~PAGE_MASK;
+
+	struct page *page_p = phys_to_page(__pa(base_p));
+	if (!page_p)
+		return;
+
+	void *w_page = vmap(&page_p, 1, VM_MAP, PAGE_KERNEL);
+	if (!w_page)
+		return;
+
+	struct list_head **target = (void *)((unsigned long)w_page + offset_p);
+	
+	preempt_disable();
+
+	WRITE_ONCE(*target, next);
+
+	preempt_enable();
+	vunmap(w_page);
+
+	// smash next->prev, basically we need to write 'prev' into 'next->prev'
+	unsigned long addr_n = (unsigned long)&next->prev;
+	unsigned long base_n = addr_n & PAGE_MASK;
+	unsigned long offset_n = addr_n & ~PAGE_MASK;
+
+	struct page *page_n = phys_to_page(__pa(base_n));
+	if (!page_n)
+		return;
+
+	w_page = vmap(&page_n, 1, VM_MAP, PAGE_KERNEL);
+	if (!w_page)
+		return;
+	
+	target = (void *)((unsigned long)w_page + offset_n);
+
+	preempt_disable();
+
+	WRITE_ONCE(*target, prev);
+
+	preempt_enable();
+	vunmap(w_page);
+
+	smp_mb();
+
+}
+
+static void ksu_dethrone_selinux_list()
+{
+	struct list_head *head = (struct list_head *)ksu_hooks_setprocattr[0].head;
+	struct security_hook_list *pos;
+
+	if (!head || list_empty(head))
+		return;
+
+	pos = list_first_entry(head, struct security_hook_list, list);
+
+	if (pos->hook.setprocattr == ksu_setprocattr_wrapper) {
+		if (pos->list.next == head)
+			return; 
+
+		pos = list_first_entry(&pos->list, struct security_hook_list, list);
+	}
+
+	selinux_setprocattr_fn = pos->hook.setprocattr;
+	pr_info("ksu_setprocattr: selinux_setprocattr: 0x%lx \n", (uintptr_t)selinux_setprocattr_fn);
+
+	ksu_list_del_safe(&pos->list);
+
+	pr_info("ksu_setprocattr: selinux_setprocattr evicted and proxied!\n");
+}
+
 #define ksu_security_add_hooks(a, b, c) security_add_hooks(a, b)
 #endif
 
@@ -222,7 +310,7 @@ static __init void ksu_lsm_hook_init(void)
 	ksu_security_add_hooks(ksu_hooks_setprocattr, ARRAY_SIZE(ksu_hooks_setprocattr), "setprocattr");
 
 	// dethrone it!
-	ksu_dethrone_selinux_setprocattr();
+	ksu_dethrone_selinux_list();
 
 	ksu_security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");
 
