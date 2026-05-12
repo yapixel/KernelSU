@@ -45,6 +45,19 @@ LSM_HANDLER_TYPE ksu_file_permission(struct file *file, int mask)
 	return 0;
 }
 
+int (*selinux_setprocattr_fn)(const char *name, void *value, size_t size) __read_mostly = NULL;
+
+int ksu_setprocattr(const char *name, void *value, size_t size)
+{
+
+	ksu_hide_setprocattr(name, value, size);
+
+	if (selinux_setprocattr_fn)
+		return selinux_setprocattr_fn(name, value, size);
+
+	return 0;
+}
+
 #ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 static struct security_hook_list ksu_hooks[] __ro_after_init = {
@@ -58,7 +71,135 @@ static struct security_hook_list ksu_hooks[] __ro_after_init = {
 #endif
 };
 
+static struct security_hook_list ksu_hooks_setprocattr[] __ro_after_init = {
+	LSM_HOOK_INIT(setprocattr, ksu_setprocattr),
+};
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SECURITY_ADD_HOOKS_V2)
+
+static void ksu_hlist_del_safe(struct hlist_node *n)
+{
+	struct hlist_node *next = n->next;
+	struct hlist_node **pprev = n->pprev;
+
+	if (!pprev)
+		return;
+
+	// this is here so we don't get lost
+	/**
+	 *	original state
+	 * n			ptr	*ptr
+	 * H	hlist_head	0x1000	0xA000
+	 *
+	 * A	node->next	0xA000	0xB000
+	 *	node->pprev	0xA008	0x1000
+	 *
+	 * B	node->next	0xB000	0xC000
+	 *	node->pprev	0xB008	0xA000
+	 *
+	 * C	node->next	0xC000	0xFFFF
+	 *	node->pprev	0xC008	0xB000
+	 *
+	 */
+
+	// on hlist, pprev is the address of the 'next' pointer in the previous element
+	// so what we do is:
+	// 	write the value 0xC000 (next) into address 0xA000 (A->next)
+	// 	write the value 0xA000 (pprev) into address 0xC008 (C->pprev)
+
+	/**
+	 * 	after this routine
+	 *
+	 * H	hlist_head	0x1000	0xA000
+	 *
+	 * A	node->next	0xA000	0xC000  <-- now points to C
+	 *	node->pprev	0xA008	0x1000
+	 *
+	 * B	node->next	0xB000	0xC000  <-- orphaned
+	 *	node->pprev	0xB008	0xA000  <-- orphaned
+	 *
+	 * C	node->next	0xC000	0xFFFF
+	 *	node->pprev	0xC008	0xA000  <-- now points to A's next
+	 *
+	 */
+
+	// NOTE: pprev is **
+	uintptr_t addr = (uintptr_t)pprev;
+	uintptr_t base = addr & PAGE_MASK;
+	uintptr_t offset = addr & ~PAGE_MASK;
+
+	struct page *page = phys_to_page(__pa(base));
+	if (!page)
+		return;
+
+	// vmap pprev
+	void *writable_addr = vmap(&page, 1, VM_MAP, PAGE_KERNEL);
+	if (!writable_addr)
+		return;
+
+	uintptr_t target_slot = (uintptr_t)((uintptr_t)writable_addr + offset);
+
+	preempt_disable();
+
+	WRITE_ONCE(*(struct hlist_node **)target_slot, next);
+
+	preempt_enable();
+
+	vunmap(writable_addr);
+
+	smp_mb();
+
+	if (!next)
+		return;
+
+	// NOTE: pprev is **, taking ref, it becomes ***
+	addr = (uintptr_t)&next->pprev;
+	base = addr & PAGE_MASK;
+	offset = addr & ~PAGE_MASK;
+
+	page = phys_to_page(__pa(base));
+	if (!page)
+		return;
+
+	writable_addr = vmap(&page, 1, VM_MAP, PAGE_KERNEL);
+	if (!writable_addr)
+		return;
+
+	target_slot = (uintptr_t)((uintptr_t)writable_addr + offset);
+
+	preempt_disable();
+
+	// use our pprev as the new pprev for the next in chain
+	WRITE_ONCE(*(struct hlist_node ***)target_slot, pprev);
+
+	preempt_enable();
+
+	vunmap(writable_addr);
+
+	smp_mb();
+}
+
+static void ksu_dethrone_selinux_setprocattr()
+{
+	struct hlist_head *head = ksu_hooks_setprocattr[0].head; 
+	struct security_hook_list *pos;
+    
+	if (!head)
+		return;
+
+	hlist_for_each_entry(pos, head, list) {
+		if (!strcmp(pos->lsm, "selinux")) {
+			selinux_setprocattr_fn = pos->hook.setprocattr;
+			
+			ksu_hlist_del_safe(&pos->list);
+			
+			pr_info("selinux_setprocattr: dethroned, evicted and proxied.\n");
+			break;
+		}
+	}
+
+}
+
 #define ksu_security_add_hooks security_add_hooks
 #else
 #define ksu_security_add_hooks(a, b, c) security_add_hooks(a, b)
@@ -66,6 +207,11 @@ static struct security_hook_list ksu_hooks[] __ro_after_init = {
 
 static __init void ksu_lsm_hook_init(void)
 {
+	ksu_security_add_hooks(ksu_hooks_setprocattr, ARRAY_SIZE(ksu_hooks_setprocattr), "setprocattr");
+
+	// dethrone it!
+	ksu_dethrone_selinux_setprocattr();
+
 	ksu_security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");
 
 	pr_info("core_hook: initialized %d LSMs \n", ARRAY_SIZE(ksu_hooks));
