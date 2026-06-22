@@ -136,8 +136,8 @@ static __always_inline void ksu_sucompat_user_common(const char __user **filenam
 	const char su[16] = SU_PATH;
 
 	// sugar prep
-	uintptr_t *su_p = (uintptr_t *)su;
-	uintptr_t __user *fn_p = (uintptr_t __user *)untagged_addr(*(char **)filename_user);
+	uintptr_t *su_p = (uintptr_t __attribute__((may_alias)) *)su;
+	uintptr_t __user *fn_p = (uintptr_t __user __attribute__((may_alias)) *)untagged_addr(*(char **)filename_user);
 
 	// assert /system/bin/su\0 = 15 bytes.
 	BUILD_BUG_ON(sizeof(SU_PATH) + 1 != 16);
@@ -266,8 +266,8 @@ static __always_inline void ksu_sucompat_kernel_common(void **restrict filename_
 	// it seems this is actually the slowest part, we peek last word first to speed it up
 	// sugar prep
 	const char su[16] = SU_PATH;
-	uintptr_t *su_p = (uintptr_t *)su;
-	uintptr_t *fn_p = (uintptr_t *)*(char **)filename_ptr;
+	uintptr_t *su_p = (uintptr_t __attribute__((may_alias)) *)su;
+	uintptr_t *fn_p = (uintptr_t __attribute__((may_alias)) *)*(char **)filename_ptr;
 
 	// getname_flags pads this so nothing to worry about, dereference with confidence!
 #ifdef CONFIG_64BIT

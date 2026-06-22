@@ -96,6 +96,9 @@ CFLAGS_ksu.o += -Wno-macro-redefined
 
 # dont be too strict
 CFLAGS_REMOVE_ksu.o += -Werror
+CFLAGS_REMOVE_ksu.o += -fno-strict-aliasing
+
+CFLAGS_ksu.o += -fstrict-aliasing
 
 # so we can see stack use atleast, as we disable all stack safety here
 CFLAGS_ksu.o += $(call cc-option, -Wframe-larger-than=1024)
