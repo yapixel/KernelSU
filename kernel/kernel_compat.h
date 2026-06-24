@@ -146,6 +146,15 @@ static inline void ksu_kvfree(void *buf)
 #define kvfree ksu_kvfree
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+static inline void *ksu_kvcalloc(size_t n, size_t size, gfp_t flags)
+{
+	// WARNING: no overflow check!
+	return kvmalloc(n * size, flags | __GFP_ZERO);
+}
+#define kvcalloc ksu_kvcalloc
+#endif
+
 // for supercalls.c fd install tw
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0) && !defined(TWA_RESUME)
 #define TWA_RESUME 1

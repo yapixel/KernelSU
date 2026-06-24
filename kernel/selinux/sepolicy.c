@@ -1098,9 +1098,41 @@ static bool add_typeattribute(struct policydb *db, const char *type, const char 
 	return true;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || defined(KSU_TYPE_VAL_TO_STRUCT) || defined(KSU_TYPE_VAL_TO_STRUCT_ARRAY)
+static inline struct ebitmap *policydb_get_type_attr_map(struct policydb *db, int i)
+{
+	return &db->type_attr_map_array[i];
+}
+static inline struct type_datum *policydb_get_type_val(struct policydb *db, int i)
+{
+#if defined(KSU_TYPE_VAL_TO_STRUCT_ARRAY)
+	return db->type_val_to_struct_array[i];
+#else
+	return db->type_val_to_struct[i];
+#endif
+}
+
+#else
+
+static inline struct ebitmap *policydb_get_type_attr_map(struct policydb *db, int i)
+{
+	return flex_array_get(db->type_attr_map_array, i);
+}
+static inline struct type_datum *policydb_get_type_val(struct policydb *db, int i)
+{
+	// htable is **
+	// this can ret NULL!
+	struct type_datum **p = flex_array_get(db->type_val_to_struct_array, i);
+	if (!p)
+		return NULL;
+
+	return *p;
+}
+#endif
+
 static bool clone_type_attributes(struct policydb *db, struct type_datum *src, struct type_datum *dst, u32 *copied)
 {
-	struct ebitmap *src_attrs = &db->type_attr_map_array[src->value - 1];
+	struct ebitmap *src_attrs = policydb_get_type_attr_map(db, src->value - 1);
 	u32 bit;
 
 	for (bit = 0; bit <= src_attrs->highbit; bit++) {
@@ -1109,7 +1141,7 @@ static bool clone_type_attributes(struct policydb *db, struct type_datum *src, s
 		if (!ebitmap_get_bit(src_attrs, bit))
 			continue;
 
-		attr = db->type_val_to_struct[bit];
+		attr = policydb_get_type_val(db, bit);
 		if (!attr || !attr->attribute)
 			continue;
 
@@ -1203,11 +1235,35 @@ static bool clone_avtab_rules(struct policydb *db, struct type_datum *src, struc
 	if (!snapshot)
 		return false;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0) || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || defined(KSU_TYPE_VAL_TO_STRUCT) || defined(KSU_TYPE_VAL_TO_STRUCT_ARRAY)
 	avtab_for_each(db->te_avtab, node)
 	{
 		snapshot[idx++] = node;
 	}
+#else
 
+	int slot = 0;
+
+next_slot:
+	if (slot >= db->te_avtab.nslot)
+		goto iter_done;
+
+	node = avtab_get_slot(&db->te_avtab, slot);
+
+next_node:
+	if (!node) {
+		slot = slot + 1;
+		goto next_slot;
+	}
+
+	snapshot[idx] = node;
+	idx = idx + 1;
+
+	node = node->next;
+	goto next_node;
+
+iter_done:
+#endif
 	count = idx;
 	for (idx = 0; idx < count; idx++) {
 		struct avtab_key key;
@@ -1268,6 +1324,7 @@ err:
 	return false;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 static bool clone_filename_trans_rules(struct policydb *db, struct type_datum *src, struct type_datum *dst, u32 *copied)
 {
 	struct filename_trans_datum **datums;
@@ -1365,6 +1422,65 @@ err:
 	return false;
 }
 
+#else
+
+/**
+ * we can just iterate directly because we are NOT unrolling nested linked lists
+ * the data structure is completely flat (one source type per hash node)
+ * see filename_trans_datum, filename_trans
+ * https://github.com/torvalds/linux/commit/c3a276111ea2572399281988b3129683e2a6b60b
+ *
+ * so we can just copy the latter half of upstream's code.
+ */
+static bool clone_filename_trans_rules(struct policydb *db, struct type_datum *src, struct type_datum *dst, u32 *copied)
+{
+	int slot = 0;
+
+next_slot:
+	if (slot >= db->filename_trans->size) // u32 size; /* number of slots in hash table */
+		return true; // no more slots!
+
+	struct hashtab_node *node = db->filename_trans->htable[slot];
+
+next_node:
+	if (!node) {
+		slot++;
+		goto next_slot;
+	}
+
+	struct filename_trans *key = node->key;
+	struct filename_trans_datum *datum = node->datum;
+	const char *src_name;
+	const char *tgt_name;
+	const char *def_name;
+
+	// we are NOT doing a popcunt here, stype is flat, not a bitmap, (type vs stypes)
+	// read as: if these three is not the value we want to copy we skip.
+	if (key->ttype != src->value && datum->otype != src->value && key->stype != src->value)
+		goto skip;
+
+	tgt_name = sym_name(db, SYM_TYPES, (key->ttype == src->value ? dst->value : key->ttype) - 1);
+	def_name = sym_name(db, SYM_TYPES, (datum->otype == src->value ? dst->value : datum->otype) - 1);
+	if (!tgt_name || !def_name)
+		return false;
+
+	if (key->stype == src->value)
+		src_name = sym_name(db, SYM_TYPES, dst->value - 1);
+	else
+		src_name = sym_name(db, SYM_TYPES, key->stype - 1);
+	if (!src_name)
+		return false;
+
+	if (!add_filename_trans(db, src_name, tgt_name, sym_name(db, SYM_CLASSES, key->tclass - 1), def_name, key->name))
+		return false;
+
+	(*copied)++;
+
+skip:
+	node = node->next;
+	goto next_node;
+}
+#endif
 //////////////////////////////////////////////////////////////////////////
 
 // Operation on types
