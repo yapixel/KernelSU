@@ -29,9 +29,16 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 	int argc = sepol_expected_argc(cmd);
 
-	if (cmd == KSU_SEPOLICY_CMD_TYPE || cmd == KSU_SEPOLICY_CMD_TYPE_ATTR || cmd == KSU_SEPOLICY_CMD_TYPE_STATE || cmd == KSU_SEPOLICY_CMD_ATTR) {
+	if (cmd == KSU_SEPOLICY_CMD_TYPE || cmd == KSU_SEPOLICY_CMD_TYPE_ATTR || cmd == KSU_SEPOLICY_CMD_TYPE_STATE || cmd == KSU_SEPOLICY_CMD_ATTR || cmd == KSU_SEPOLICY_CMD_CLONE_TYPE ) {
 		
 		const char *name = args[0];
+
+		// on KSU_SEPOLICY_CMD_CLONE_TYPE, we grab the new type being created.
+		if (args[1] && cmd == KSU_SEPOLICY_CMD_CLONE_TYPE) {
+			name = args[1];
+			argc = 1; // so it will not trigger on argc >= 2
+		}
+
 		size_t needed_len = strlen(name) + 3; // :type:\0
 
 		if (!ksu_hide_type_list)
