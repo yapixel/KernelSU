@@ -170,8 +170,6 @@ check_ptr:
 	return true;
 }
 
-#include <linux/pagemap.h>
-
 static __always_inline void ksu_sucompat_user_common(const char __user **filename_user,
 				const char *syscall_name,
 				const bool escalate,
@@ -200,42 +198,34 @@ static __always_inline void ksu_sucompat_user_common(const char __user **filenam
 	 *
 	 */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
-	if (unlikely(fault_in_readable((const char __user *)fn_p, 16) == 16))
-		return;
-#else
-	if (unlikely(!!fault_in_pages_readable((const char __user *)fn_p, 16)))
-		return;
-#endif
-
 #ifdef CONFIG_64BIT
-	if (__get_user(buf, &fn_p[1]))
+	if (get_user(buf, &fn_p[1]))
 		return;
 
 	if (likely((buf & 0x00FFFFFFFFFFFFFFUL) != (su_p[1] & 0x00FFFFFFFFFFFFFFUL)))
 		return;
 
 #else
-	if (__get_user(buf, &fn_p[3]))
+	if (get_user(buf, &fn_p[3]))
 		return;
 
 	if (likely((buf & 0x00FFFFFFUL) != (su_p[3] & 0x00FFFFFFUL)))
 		return;
 
-	if (unlikely(__get_user(buf, &fn_p[2])))
+	if (unlikely(get_user(buf, &fn_p[2])))
 		return;
 
 	if (buf != su_p[2])
 		return;
 
-	if (unlikely(__get_user(buf, &fn_p[1])))
+	if (unlikely(get_user(buf, &fn_p[1])))
 		return;
 
 	if (unlikely(buf != su_p[1]))
 		return;
 #endif
 	// last word
-	if (unlikely(__get_user(buf, &fn_p[0])))
+	if (unlikely(get_user(buf, &fn_p[0])))
 		return;
 
 	if (unlikely(buf != su_p[0]))
