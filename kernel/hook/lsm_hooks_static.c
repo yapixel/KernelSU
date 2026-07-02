@@ -130,7 +130,6 @@ void ksu_symbol_deadweight(void) {
 }
 #endif
 
-// TODO: add iterator
 static uintptr_t kallsyms_lookup_name_retry(const char *name)
 {
 	char name_buf[KSYM_NAME_LEN] = { 0 };
@@ -138,25 +137,30 @@ static uintptr_t kallsyms_lookup_name_retry(const char *name)
 
 	addr = kallsyms_lookup_name(name);
 	if (!addr)
-		goto try_gcc_lto;
+		goto lto_priv;
 	
 	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name, addr);
 	return addr;
 
-try_gcc_lto:
-	snprintf(name_buf, sizeof(name_buf), "%s.lto_priv.0", name);
+	int lto_index = 0;
+
+lto_priv:
+	snprintf(name_buf, sizeof(name_buf), "%s.lto_priv.%d", name, lto_index);
 	addr = kp_kallsyms_lookup_name(name_buf);
-	if (!addr)
-		goto try_cfi_jt;
-	
-	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
-	return addr;
+	if (addr) {
+		pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
+		return addr;
+	}
+
+	lto_index = lto_index + 1;
+	if (lto_index < 16)
+		goto lto_priv;
 
 try_cfi_jt:
 	snprintf(name_buf, sizeof(name_buf), "%s.cfi_jt", name);
 	addr = kp_kallsyms_lookup_name(name_buf);
-	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
 
+	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
 	return addr;
 }
 
