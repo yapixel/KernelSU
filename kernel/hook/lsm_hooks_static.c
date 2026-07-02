@@ -109,14 +109,10 @@ static int ksu_setprocattr(int lsmid, const char *name, void *value, size_t size
 }
 #endif
 
-
+#if 0
 extern int do_renameat2(int olddfd, struct filename *from, int newdfd, struct filename *to, unsigned int flags);
 extern long __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
 extern ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count);
-
-#ifndef asm
-#define asm __asm__
-#endif
 
 __attribute__((used, noipa))
 void ksu_symbol_deadweight(void) {
@@ -132,6 +128,37 @@ void ksu_symbol_deadweight(void) {
 	);
 	__builtin_unreachable();
 }
+#endif
+
+// TODO: add iterator
+static uintptr_t kallsyms_lookup_name_retry(const char *name)
+{
+	char name_buf[KSYM_NAME_LEN] = { 0 };
+	uintptr_t addr = NULL;
+
+	addr = kallsyms_lookup_name(name);
+	if (!addr)
+		goto try_gcc_lto;
+	
+	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name, addr);
+	return addr;
+
+try_gcc_lto:
+	snprintf(name_buf, sizeof(name_buf), "%s.lto_priv.0", name);
+	addr = kp_kallsyms_lookup_name(name_buf);
+	if (!addr)
+		goto try_cfi_jt;
+	
+	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
+	return addr;
+
+try_cfi_jt:
+	snprintf(name_buf, sizeof(name_buf), "%s.cfi_jt", name);
+	addr = kp_kallsyms_lookup_name(name_buf);
+	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
+
+	return addr;
+}
 
 static void __init ksu_core_init(void)
 {
@@ -139,9 +166,11 @@ static void __init ksu_core_init(void)
 	uintptr_t target_callsite;
 	uintptr_t symbol_addr;
 
+#define kallsyms_lookup_name kallsyms_lookup_name_retry
+
 	extern int do_renameat2(int olddfd, struct filename *from, int newdfd, struct filename *to, unsigned int flags);
-	target_callsite = (uintptr_t)&do_renameat2;
-	symbol_addr = (uintptr_t)&vfs_rename;
+	target_callsite = kallsyms_lookup_name("do_renameat2");
+	symbol_addr = kallsyms_lookup_name("vfs_rename");
 #ifdef CONFIG_KPROBES
 	target_callsite = kp_cfi_kallsyms_lookup_name("do_renameat2");
 	symbol_addr = kp_cfi_kallsyms_lookup_name("vfs_rename");
@@ -151,8 +180,8 @@ static void __init ksu_core_init(void)
 	if (!ret)
 		goto rename_hook_done;
 
-	target_callsite = (uintptr_t)&vfs_rename;
-	symbol_addr = (uintptr_t)&security_inode_rename;
+	target_callsite = kallsyms_lookup_name("vfs_rename");
+	symbol_addr = kallsyms_lookup_name("security_inode_rename");
 #ifdef CONFIG_KPROBES
 	target_callsite = kp_cfi_kallsyms_lookup_name("vfs_rename");
 	symbol_addr = kp_cfi_kallsyms_lookup_name("security_inode_rename");
@@ -163,8 +192,9 @@ static void __init ksu_core_init(void)
 rename_hook_done:
 	;
 	extern long __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
-	target_callsite = (uintptr_t)&__sys_setresuid;
-	symbol_addr = (uintptr_t)&security_task_fix_setuid;
+
+	target_callsite = kallsyms_lookup_name("__sys_setresuid");
+	symbol_addr = kallsyms_lookup_name("security_task_fix_setuid");
 #ifdef CONFIG_KPROBES
 	target_callsite = kp_cfi_kallsyms_lookup_name("__sys_setresuid");
 	symbol_addr = kp_cfi_kallsyms_lookup_name("security_task_fix_setuid");
@@ -174,7 +204,7 @@ rename_hook_done:
 
 #ifdef CONFIG_KSU_FEATURE_SULOG
 	target_callsite = kallsyms_lookup_name("bprm_execve");
-	symbol_addr = (uintptr_t)&security_bprm_check;
+	symbol_addr = kallsyms_lookup_name("security_task_fix_setuid");
 #ifdef CONFIG_KPROBES
 	target_callsite = kp_cfi_kallsyms_lookup_name("bprm_execve");
 	symbol_addr = kp_cfi_kallsyms_lookup_name("security_bprm_check");
@@ -184,9 +214,11 @@ rename_hook_done:
 #endif
 
 #if !defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE)
-	extern ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count);
-	target_callsite = (uintptr_t)&ksys_read;
-	symbol_addr = (uintptr_t)&vfs_read;
+	target_callsite = kallsyms_lookup_name("ksys_read");
+	if (!target_callsite)
+		target_callsite = kallsyms_lookup_name("__arm64_sys_read");
+
+	symbol_addr = kallsyms_lookup_name("vfs_read");
 #ifdef CONFIG_KPROBES
 	target_callsite = kp_cfi_kallsyms_lookup_name("ksys_read");
 	symbol_addr = kp_cfi_kallsyms_lookup_name("vfs_read");
@@ -205,4 +237,6 @@ rename_hook_done:
 	ret = arm64_bl_patch(target_callsite, 64 * sizeof(void *), symbol_addr, (uintptr_t)&ksu_setprocattr);
 	pr_info("lsm_hijack: security_setprocattr: ret %d \n", ret);
 #endif
+
+#undef kallsyms_lookup_name
 }
