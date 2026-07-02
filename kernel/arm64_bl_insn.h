@@ -1,8 +1,6 @@
 #ifndef __KSU_H_ARM64_BL_PATCH
 #define __KSU_H_ARM64_BL_PATCH
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0) || defined(CONFIG_KSU_HACK_ARM64_BRANCH_LINK)
-
 #include <asm/insn.h>
 
 /**
@@ -87,7 +85,5 @@ bail:
 	pr_info("%s: callsite scan done!\n", __func__);
 	return 1;
 }
-
-#endif // 6.8 || CONFIG_KSU_HACK_ARM64_BRANCH_LINK
 
 #endif // __KSU_H_ARM64_BL_PATCH

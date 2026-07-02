@@ -99,6 +99,7 @@ static ssize_t ksu_vfs_read(struct file *file, char __user *buf, size_t count, l
 	return vfs_read(file, buf, count, pos);
 }
 
+#if 0
 // setprocattr
 extern int security_setprocattr(int lsmid, const char *name, void *value, size_t size);
 static int ksu_setprocattr(int lsmid, const char *name, void *value, size_t size)
@@ -106,6 +107,34 @@ static int ksu_setprocattr(int lsmid, const char *name, void *value, size_t size
 	ksu_hide_setprocattr_inline(name, value, size);
 	return security_setprocattr(lsmid, name, value, size);
 }
+#endif
+
+
+#if 0
+extern int do_renameat2(int olddfd, struct filename *from, int newdfd, struct filename *to, unsigned int flags);
+extern long __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+extern ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count);
+
+__attribute__((used, noipa)) 
+void ksu_symbol_deadweight(void) {
+	asm volatile("b do_renameat2");
+	asm volatile("b vfs_rename");
+	asm volatile("b security_inode_rename");
+
+	asm volatile("b __sys_setresuid");
+	asm volatile("b security_task_fix_setuid");
+
+	// nfi on this
+	asm volatile("b security_bprm_check");
+
+	asm volatile("b ksys_read");
+	asm volatile("b vfs_read");
+
+	// nfi on this
+	// asm volatile("b security_setprocattr");
+	__builtin_unreachable();
+}
+#endif
 
 static void __init ksu_core_init(void)
 {
@@ -169,6 +198,7 @@ rename_hook_done:
 	pr_info("lsm_hijack: ksys_read: ret %d \n", ret);
 #endif
 
+#if 0
 	target_callsite = kallsyms_lookup_name("proc_pid_attr_write");
 	symbol_addr = (uintptr_t)&security_setprocattr;
 #ifdef CONFIG_KPROBES
@@ -177,5 +207,5 @@ rename_hook_done:
 #endif
 	ret = arm64_bl_patch(target_callsite, 64 * sizeof(void *), symbol_addr, (uintptr_t)&ksu_setprocattr);
 	pr_info("lsm_hijack: security_setprocattr: ret %d \n", ret);
-
+#endif
 }
