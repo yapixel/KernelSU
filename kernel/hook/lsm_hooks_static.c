@@ -146,7 +146,7 @@ static uintptr_t kallsyms_lookup_name_retry(const char *name)
 
 lto_priv:
 	snprintf(name_buf, sizeof(name_buf), "%s.lto_priv.%d", name, lto_index);
-	addr = kp_kallsyms_lookup_name(name_buf);
+	addr = kallsyms_lookup_name(name_buf);
 	if (addr) {
 		pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
 		return addr;
@@ -156,9 +156,8 @@ lto_priv:
 	if (lto_index < 16)
 		goto lto_priv;
 
-try_cfi_jt:
 	snprintf(name_buf, sizeof(name_buf), "%s.cfi_jt", name);
-	addr = kp_kallsyms_lookup_name(name_buf);
+	addr = kallsyms_lookup_name(name_buf);
 
 	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", name_buf, addr);
 	return addr;
