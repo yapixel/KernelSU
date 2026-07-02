@@ -110,31 +110,27 @@ static int ksu_setprocattr(int lsmid, const char *name, void *value, size_t size
 #endif
 
 
-#if 0
 extern int do_renameat2(int olddfd, struct filename *from, int newdfd, struct filename *to, unsigned int flags);
 extern long __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
 extern ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count);
 
-__attribute__((used, noipa)) 
-void ksu_symbol_deadweight(void) {
-	asm volatile("b do_renameat2");
-	asm volatile("b vfs_rename");
-	asm volatile("b security_inode_rename");
-
-	asm volatile("b __sys_setresuid");
-	asm volatile("b security_task_fix_setuid");
-
-	// nfi on this
-	asm volatile("b security_bprm_check");
-
-	asm volatile("b ksys_read");
-	asm volatile("b vfs_read");
-
-	// nfi on this
-	// asm volatile("b security_setprocattr");
-	__builtin_unreachable();
-}
+#ifndef asm
+#define asm __asm__
 #endif
+
+__attribute__((naked, used, noipa))
+void ksu_symbol_deadweight(void) {
+	asm volatile(
+		"b do_renameat2\n"
+		"b vfs_rename\n"
+		"b security_inode_rename\n"
+		"b __sys_setresuid\n"
+		"b security_task_fix_setuid\n"
+		"b security_bprm_check\n"
+		"b ksys_read\n"
+		"b vfs_read\n"
+	);
+}
 
 static void __init ksu_core_init(void)
 {
