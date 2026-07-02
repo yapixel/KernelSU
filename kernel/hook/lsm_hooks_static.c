@@ -118,7 +118,7 @@ extern ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count);
 #define asm __asm__
 #endif
 
-__attribute__((naked, used, noipa))
+__attribute__((used, noipa))
 void ksu_symbol_deadweight(void) {
 	asm volatile(
 		"b do_renameat2\n"
@@ -130,6 +130,7 @@ void ksu_symbol_deadweight(void) {
 		"b ksys_read\n"
 		"b vfs_read\n"
 	);
+	__builtin_unreachable();
 }
 
 static void __init ksu_core_init(void)
