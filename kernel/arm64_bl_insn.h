@@ -107,6 +107,22 @@ bail:
 	return -ENOENT;
 }
 
+static uintptr_t arm64_decode_cfi_jt(uintptr_t cfi_jt_addr);
+{	
+	uint32_t insn;
+	if (!!copy_from_kernel_nofault(&insn, (void *)cfi_jt_addr, sizeof(insn)))
+		return NULL;
+
+	if (!aarch64_insn_is_b(insn))
+		return NULL;
+
+	long offset = aarch64_get_branch_offset(insn);
+	uintptr_t real_addr = cfi_jt_addr + offset;
+
+	pr_info("arm64_decode_cfi_jt: addr: 0x%lx b 0x%lx\n", cfi_jt_addr, real_addr);
+	return real_addr;
+}
+
 #endif // 6.8 || CONFIG_KSU_HACK_ARM64_BRANCH_LINK
 
 #endif // __KSU_H_ARM64_BL_PATCH

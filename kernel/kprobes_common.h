@@ -31,7 +31,6 @@ static uintptr_t kp_syscall_lookup(const char *name)
 
 static uintptr_t kp_cfi_kallsyms_lookup_name(const char *name)
 {
-	char cfi_name[KSYM_NAME_LEN] = { 0 };
 	uintptr_t addr = NULL;
 
 	addr = kp_kallsyms_lookup_name(name);
@@ -42,12 +41,20 @@ static uintptr_t kp_cfi_kallsyms_lookup_name(const char *name)
 	return addr;
 
 cfi_jt:
-	// decode the b 0xfffffffff address on here if this happens, TODO.
+#if 0
+	;
+
+	char cfi_name[KSYM_NAME_LEN] = { 0 };
 	snprintf(cfi_name, sizeof(cfi_name), "%s.cfi_jt", name);
 	addr = kallsyms_lookup_name(cfi_name);
-	pr_info("kallsyms_lookup_name: %s addr: 0x%lx \n", cfi_name, addr);
+	if (!addr)
+		return NULL;
 
-	return addr;
+	extern uintptr_t arm64_decode_cfi_jt(addr);
+	return arm64_decode_cfi_jt(addr);
+#else
+	return NULL;
+#endif
 }
 
 // heapified kprobe registration, copied from upstream
