@@ -170,6 +170,7 @@ check_ptr:
 	return true;
 }
 
+#include <linux/pagemap.h>
 static __always_inline void ksu_sucompat_user_common(const char __user **filename_user,
 				const char *syscall_name,
 				const bool escalate,
@@ -200,6 +201,13 @@ static __always_inline void ksu_sucompat_user_common(const char __user **filenam
 	 * on 64-bit we do this in 2 word compare, 4 on 32-bit, little endian only!
 	 *
 	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	if (unlikely(fault_in_readable((const char __user *)fn_p, 16) == 16))
+		return;
+#else
+	if (unlikely(!!fault_in_pages_readable((const char __user *)fn_p, 16)))
+		return;
+#endif
 
 #ifdef CONFIG_64BIT
 	if (get_user(buf, &fn_p[1]))
