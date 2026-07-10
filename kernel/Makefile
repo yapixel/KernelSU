@@ -41,10 +41,18 @@ ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/includ
 CFLAGS_ksu.o += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
-CFLAGS_ksu.o += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-declaration-after-statement 
-CFLAGS_ksu.o += -Wno-int-conversion -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast
-CFLAGS_ksu.o += -Wno-unused-variable -Wno-unused-function -Wno-format
-CFLAGS_ksu.o += -Wno-macro-redefined
+CFLAGS_ksu.o += $(call cc-option, -Wno-declaration-after-statement)
+CFLAGS_ksu.o += $(call cc-option, -Wno-implicit-function-declaration)
+CFLAGS_ksu.o += $(call cc-option, -Wno-strict-prototypes)
+CFLAGS_ksu.o += $(call cc-option, -Wno-int-conversion)
+CFLAGS_ksu.o += $(call cc-option, -Wno-int-to-pointer-cast)
+CFLAGS_ksu.o += $(call cc-option, -Wno-pointer-to-int-cast)
+CFLAGS_ksu.o += $(call cc-option, -Wno-unused-variable)
+CFLAGS_ksu.o += $(call cc-option, -Wno-unused-function)
+CFLAGS_ksu.o += $(call cc-option, -Wno-format)
+CFLAGS_ksu.o += $(call cc-option, -Wno-macro-redefined)
+CFLAGS_ksu.o += $(call cc-option, -Wno-incompatible-pointer-types-discards-qualifiers)
+CFLAGS_ksu.o += $(call cc-option, -Wno-discarded-qualifiers)
 
 # dont be too strict
 CFLAGS_REMOVE_ksu.o += -Werror
