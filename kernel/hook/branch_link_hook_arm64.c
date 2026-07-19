@@ -280,10 +280,42 @@ compat_sys_execve_hook_done:
 	return ret;
 }
 
+// we include this so that when bl patching fails, we tamper the syscall table instead
+#undef syscall_table_sucompat_enable
+#undef syscall_table_sucompat_disable
+#include "syscall_table_hook_arm64.c"
+
 static int ksu_branch_link_patch_init()
 {
-	bl_hook_faccessat();
-	bl_hook_stat();
-	bl_hook_execve();
+	int ret = bl_hook_faccessat();
+	if (!ret)
+		goto faccessat_ok;
+
+	read_and_replace_syscall((void *)&aarch64_faccessat, __AARCH64_faccessat, (void *)hook_aarch64_faccessat, (void *)sys_call_table);
+#if defined(CONFIG_COMPAT)
+	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)compat_sys_call_table);
+#endif
+faccessat_ok:
+
+	ret = bl_hook_stat();
+	if (!ret)
+		goto stat_ok;
+
+	read_and_replace_syscall((void *)&aarch64_newfstatat, __AARCH64_newfstatat, (void *)hook_aarch64_newfstatat, (void *)sys_call_table);
+#if defined(CONFIG_COMPAT)
+	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)compat_sys_call_table);
+#endif
+stat_ok:
+
+	ret = bl_hook_execve();
+	if (!ret)
+		goto execve_ok;
+
+	read_and_replace_syscall((void *)&aarch64_execve, __AARCH64_execve, (void *)hook_aarch64_execve, (void *)sys_call_table);
+#if defined(CONFIG_COMPAT)
+	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)compat_sys_call_table);
+#endif
+execve_ok:
+
 	return 0;
 }
