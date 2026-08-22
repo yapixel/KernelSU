@@ -63,6 +63,12 @@ asmlinkage long hook_aarch64_openat(const struct pt_regs *regs)
 	if (likely(test_thread_flag(TIF_KSU_UNMOUNTABLE)))
 		goto orig_fn;
 
+	if (likely(!ksu_module_mounted))
+		goto orig_fn;
+
+	if (likely(!ksu_kernel_umount_enabled))
+		goto orig_fn;
+
 	int fd = ksu_handle_openat(filename, flags);
 	if (fd > 0)
 		return fd;
@@ -75,6 +81,12 @@ static void *aarch64_openat __read_mostly = NULL;
 asmlinkage long hook_aarch64_openat(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	if (likely(test_thread_flag(TIF_KSU_UNMOUNTABLE)))
+		goto orig_fn;
+
+	if (likely(!ksu_module_mounted))
+		goto orig_fn;
+
+	if (likely(!ksu_kernel_umount_enabled))
 		goto orig_fn;
 
 	int fd = ksu_handle_openat(filename, flags);
