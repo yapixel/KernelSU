@@ -14,6 +14,8 @@
 #ifndef __KSU_H_HOSTSREDIRECT
 #define __KSU_H_HOSTSREDIRECT
 
+static bool ksu_kernel_umount_enabled __read_mostly;
+
 static inline int ksu_handle_openat(const char __user *filename, int flags)
 {
 	const char __user *uptr = (const char __user *)untagged_addr((void *)filename);
