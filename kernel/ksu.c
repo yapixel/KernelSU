@@ -85,6 +85,8 @@
 #include "downstream/tiny_sulog.h"
 #include "downstream/vmap_patch.h"
 
+#include "downstream/ksu_hostsredirect.h"
+
 // unity build
 #include "policy/allowlist.c"
 #include "policy/app_profile.c"
@@ -147,8 +149,6 @@
 #if defined(CONFIG_KSU_KPROBES_KSUD) && !defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE) && !defined(CONFIG_KSU_HACK_ARM64_BRANCH_LINK)
 #include "hook/kp_ksud.c"
 #endif
-
-#include "downstream/ksu_hostsredirect.h"
 
 // track backports and other quirks here
 // ref: kernel_compat.c, Makefile

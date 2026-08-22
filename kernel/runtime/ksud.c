@@ -90,6 +90,8 @@ void on_boot_completed(void)
 	ksu_boot_completed = true;
 	pr_info("on_boot_completed!\n");
 	track_throne(true);
+
+	ksu_hostsredirect_unhook();
 }
 
 static ssize_t (*orig_read)(struct file *, char __user *, size_t, loff_t *);

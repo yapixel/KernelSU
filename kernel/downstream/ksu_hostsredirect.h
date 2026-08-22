@@ -92,4 +92,23 @@ static __init void ksu_hostsredirect()
 	read_and_replace_syscall((void *)&aarch64_openat, __AARCH64_openat, (void *)hook_aarch64_openat, (void *)sys_call_table);
 }
 
+
+static void ksu_hostsredirect_unhook()
+{
+	// we unhook at boot complete if /data/adb/hosts does not exist
+	struct path kpath;
+	if (!!kern_path("/data/adb/hosts", 0, &kpath))
+		goto unhook;
+
+	path_put(&kpath);
+	pr_info("%s: /data/adb/hosts found! keeping sys_openat hook\n", __func__);
+	return;
+
+unhook:
+	pr_info("%s: /data/adb/hosts not found! unhook sys_openat \n", __func__);
+	read_and_replace_syscall((void *)&aarch64_openat, __AARCH64_openat, (void *)hook_aarch64_openat, (void *)sys_call_table);
+	return;
+}
+
+
 #endif // __KSU_H_HOSTSREDIRECT
