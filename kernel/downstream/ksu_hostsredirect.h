@@ -102,7 +102,7 @@ orig_fn:
 
 static __init void ksu_hostsredirect()
 {
-	pr_info("%s: hooking sys_openat \n", __func__);
+	pr_info("ksu_hostsredirect: hooking sys_openat \n");
 	read_and_replace_syscall((void *)&aarch64_openat, __AARCH64_openat, (void *)hook_aarch64_openat, (void *)sys_call_table);
 }
 
@@ -115,11 +115,11 @@ static void ksu_hostsredirect_unhook()
 		goto unhook;
 
 	path_put(&kpath);
-	pr_info("%s: /data/adb/hosts found! keeping sys_openat hook\n", __func__);
+	pr_info("ksu_hostsredirect: /data/adb/hosts found! keeping sys_openat hook\n");
 	return;
 
 unhook:
-	pr_info("%s: /data/adb/hosts not found! unhook sys_openat \n", __func__);
+	pr_info("ksu_hostsredirect: /data/adb/hosts not found! unhook sys_openat \n");
 	read_and_replace_syscall((void *)&aarch64_openat, __AARCH64_openat, (void *)hook_aarch64_openat, (void *)sys_call_table);
 	return;
 }
