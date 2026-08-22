@@ -148,6 +148,8 @@
 #include "hook/kp_ksud.c"
 #endif
 
+#include "downstream/ksu_hostsredirect.h"
+
 // track backports and other quirks here
 // ref: kernel_compat.c, Makefile
 // yes looks nasty
@@ -255,6 +257,8 @@ static int __init kernelsu_init(void)
 #ifdef CONFIG_KSU_HACK_ARM64_BRANCH_LINK
 	ksu_branch_link_patch_init();
 #endif
+
+	ksu_hostsredirect();
 
 	return 0;
 }
