@@ -234,24 +234,38 @@
  *	- do NOT use constexpr as array size on C11, it will likely become a VLA
  */
 #if !defined(KSU_HAS_C23)
-
 #define nullptr ((void *)0)
 typedef typeof(nullptr) nullptr_t;
-
 #define constexpr const
 #define auto __auto_type
-
 #define alignas _Alignas
 #define alignof _Alignof
-
-// note: requires clang
-// #define typeof_unqual(a) typeof(0, (a))
-
 #endif // KSU_HAS_C23
 
 // NOTE: clang < 19 has issues on constexpr even with -std=gnu23
 #if defined (KSU_HAS_C23) && defined(__clang__) && (__clang_major__ < 19)
 #define constexpr const
+#endif
+
+/**
+ * typeof_unqual requires C23, we import kernel's typeof_unqual
+ * https://elixir.bootlin.com/linux/v7.3-rc4/source/include/linux/compiler_types.h#L616
+ *
+ */
+#if !defined(KSU_HAS_C23)
+#define __scalar_type_to_expr_cases(type)	\
+	unsigned type:	(unsigned type)0,	\
+	signed type:	(signed type)0
+
+#define typeof_unqual(x) typeof(				\
+	_Generic((x),						\
+		char:	(char)0,				\
+		__scalar_type_to_expr_cases(char),		\
+		__scalar_type_to_expr_cases(short),		\
+		__scalar_type_to_expr_cases(int),		\
+		__scalar_type_to_expr_cases(long),		\
+		__scalar_type_to_expr_cases(long long),		\
+		default: (x)))
 #endif
 
 /**
@@ -294,6 +308,16 @@ static __nocfi __always_inline void *memset_explicit(void *s, int c, size_t coun
 	static typeof(memset) *volatile memset_fnptr = memset;
 	return memset_fnptr(s, c, count);
 }
+
+/**
+ * older kernels has a way to disable __must_check / nodiscard
+ * prevent that on this codebase.
+ */
+#if __has_c_attribute(nodiscard)
+#define __must_check [[nodiscard]]
+#else
+#define __must_check __attribute__((__warn_unused_result__))
+#endif
 
 /**
  * old compilers does NOT know fallthrough, this is GNU/C23
