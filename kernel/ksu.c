@@ -5,6 +5,7 @@
 
 // for OOT builds like on ddk, just enable everything
 #ifndef CONFIG_KSU_HEURISTIC_IN_TREE_BUILD
+	#define CONFIG_KSU_GETPRIORITY_FILTER_DEMO 1
 	#define CONFIG_KSU_HOSTSREDIRECT 1
 	#define CONFIG_KSU_LSM_SECURITY_HOOKS 1
 	#define CONFIG_KSU_HACK_ARM64_BRANCH_LINK 1
@@ -100,6 +101,10 @@
 
 #ifdef CONFIG_KSU_HOSTSREDIRECT
 #include "downstream/ksu_hostsredirect.h"
+#endif
+
+#ifdef CONFIG_KSU_GETPRIORITY_FILTER_DEMO
+#include "downstream/ksu_getpriority.h"
 #endif
 
 // unity build
@@ -298,6 +303,9 @@ static int __init kernelsu_init(void)
 	ksu_branch_link_patch_init();
 #endif
 
+#ifdef CONFIG_KSU_GETPRIORITY_FILTER_DEMO
+	ksu_getpriority_init();
+#endif
 	return 0;
 }
 
